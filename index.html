@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>🎵 Schallplatten-Tracker (HTML) – mit Barcode</title>
+<meta name="description" content="Einfacher Vinyl-Tracker, läuft komplett im Browser.">
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#fafafa; --fg:#111; --muted:#666; --brand:#2563eb; --card:#fff; --border:#e5e7eb; }
+  html,body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; background:var(--bg); color:var(--fg); }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; }
+  h1 { margin:0; font-size: clamp(20px, 3vw, 28px); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; }
+  .grid { display:grid; gap:10px; }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+  input, textarea, select { width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-size:14px; }
+  textarea { resize:vertical; }
+  button { appearance:none; border:1px solid var(--border); background:#fff; padding:10px 12px; border-radius:10px; cursor:pointer; font-size:14px; }
+  button.primary { background:var(--brand); color:#fff; border-color:transparent; }
+  button.ghost { background:transparent; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .table { width:100%; border-collapse: collapse; }
+  .table th, .table td { text-align:left; padding:10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .table th { font-weight:600; font-size:13px; color:#444; }
+  .cover { width:58px; height:58px; border-radius:8px; object-fit:cover; background:#f0f0f0; display:block; }
+  .badges { display:flex; gap:6px; flex-wrap:wrap; }
+  .badge { padding:2px 8px; border-radius:999px; font-size:12px; background:#f3f4f6; border:1px solid var(--border); }
+  .muted { color:var(--muted); }
+  .hidden { display:none; }
+  dialog { border:none; border-radius:16px; padding:0; max-width:720px; width:calc(100% - 24px); }
+  dialog .dialog-body { padding:16px; }
+  dialog::backdrop { background:rgba(0,0,0,0.25); }
+  .stats { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
+  .stat .v { font-weight:700; font-size:22px; }
+  .pill { border:1px dashed var(--border); padding:8px 10px; border-radius:10px; }
+  .note { font-size:12px; color:#555; }
+  .ok { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎵 Schallplatten-Tracker (HTML) <span class="muted">– mit Barcode-Autofill</span></h1>
+      <div class="actions">
+        <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firebase lädt…</span>
+        <button id="btn-export-json">Export JSON</button>
+        <button id="btn-export-csv">Export CSV</button>
+        <button id="btn-import">Import JSON</button>
+        <input id="file-import" type="file" accept="application/json" class="hidden" />
+      </div>
+    </header>
+
+    <section class="stats">
+      <div class="stat"><div class="muted">Gesamtanzahl</div><div class="v" id="stat-count">0</div></div>
+      <div class="stat"><div class="muted">Ausgaben (geschätzt)</div><div class="v" id="stat-spent">0,00 €</div></div>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <div class="row">
+        <div style="flex:1; min-width:240px">
+          <label for="search">Suche</label>
+          <input id="search" placeholder="Künstler, Titel, Label oder Tag" />
+        </div>
+        <div style="width:180px">
+          <label for="formatFilter">Format</label>
+          <select id="formatFilter"><option value="">(alle)</option></select>
+        </div>
+        <div style="width:220px">
+          <label for="condFilter">Zustand</label>
+          <select id="condFilter"><option value="">(alle)</option></select>
+        </div>
+        <div style="width:220px">
+          <label for="sortBy">Sortierung</label>
+          <select id="sortBy">
+            <option value="createdAt-desc">Neueste zuerst</option>
+            <option value="artist-asc">Künstler A–Z</option>
+            <option value="title-asc">Titel A–Z</option>
+            <option value="year-desc">Jahr ↓</option>
+            <option value="price-desc">Preis ↓</option>
+            <option value="rating-desc">Bewertung ↓</option>
+          </select>
+        </div>
+        <div><button id="btn-reset">Reset</button></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <div class="grid grid-2">
+        <div>
+          <label for="barcode">Barcode einscannen oder eingeben (EAN/UPC)</label>
+          <input id="barcode" inputmode="numeric" placeholder="z. B. 0888750663828" />
+          <div class="note">USB-Scanner tippt den Code + Enter. Nach Enter wird automatisch gesucht.</div>
+        </div>
+        <div>
+          <label for="discogsToken">Optional: Discogs-Token (für bessere Treffer)</label>
+          <input id="discogsToken" placeholder="Discogs API-Token (optional)" />
+          <div class="note">Ohne Token wird MusicBrainz + Cover Art Archive genutzt.</div>
+        </div>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button id="btn-lookup" class="primary">Infos per Barcode holen</button>
+        <span id="lookup-status" class="muted"></span>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <div class="row" style="justify-content:space-between; margin-bottom:8px">
+        <strong>Sammlung</strong>
+        <button id="btn-add">Neue Platte</button>
+      </div>
+      <table class="table" id="table">
+        <thead>
+          <tr>
+            <th>Cover</th>
+            <th>Künstler — Titel<br><span class="muted">Label • Jahr • Format • Zustand</span></th>
+            <th>Tags / Notizen</th>
+            <th>Bewertung</th>
+            <th>Preis</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+
+    <dialog id="dlg">
+      <form method="dialog">
+        <div class="dialog-body">
+          <h3 id="dlg-title" style="margin:8px 0 12px 0">Platte</h3>
+          <div class="grid grid-2">
+            <div><label>Künstler*in</label><input id="f-artist" placeholder="z. B. Nils Frahm" /></div>
+            <div><label>Titel</label><input id="f-title" placeholder="z. B. All Melody" /></div>
+            <div><label>Jahr</label><input id="f-year" /></div>
+            <div><label>Label</label><input id="f-label" /></div>
+            <div><label>Katalog-Nr.</label><input id="f-catalog" /></div>
+            <div>
+              <label>Format</label>
+              <select id="f-format"></select>
+            </div>
+            <div><label>Farbe</label><input id="f-color" placeholder="schwarz / clear / splatter…" /></div>
+            <div>
+              <label>Zustand</label>
+              <select id="f-condition"></select>
+            </div>
+            <div><label>Bewertung (0–5)</label><input id="f-rating" type="number" min="0" max="5" step="1" /></div>
+            <div><label>Preis (€)</label><input id="f-price" type="number" min="0" step="0.01" /></div>
+            <div><label>Kaufdatum</label><input id="f-date" type="date" /></div>
+            <div><label>Cover-URL</label><input id="f-cover" placeholder="https://…" /></div>
+            <div class="grid" style="grid-column:1/-1"><label>Tags (mit Komma)</label><input id="f-tags" placeholder="ambient, 90s" /></div>
+            <div class="grid" style="grid-column:1/-1"><label>Notizen</label><textarea id="f-notes" rows="4" placeholder="Pressung, Matrix, Besonderheiten…"></textarea></div>
+          </div>
+          <div class="actions" style="margin-top:12px; justify-content:flex-end">
+            <button id="btn-cancel" class="ghost">Abbrechen</button>
+            <button id="btn-save" class="primary">Speichern</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+  </div>
+
+  <!-- Firebase (ES Modules, funktioniert auf GitHub Pages ohne Bundler) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    // Falls du später weitere Produkte nutzt: einfach zusätzlich importieren, z. B.:
+    // import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+    // import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+    // import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
+      authDomain: "platten-c1817.firebaseapp.com",
+      projectId: "platten-c1817",
+      storageBucket: "platten-c1817.firebasestorage.app",
+      messagingSenderId: "376624319679",
+      appId: "1:376624319679:web:28e871bf481b27342e4a0a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    // Kleines visuelles Feedback im Header
+    const s = document.getElementById("firebase-status");
+    if (s) s.textContent = "✅ Firebase initialisiert";
+    // Optional global verfügbar machen (Debugging)
+    window.firebaseApp = app;
+  </script>
+
+  <!-- Deine App-Logik -->
+  <script>
+  (function(){
+    const FORMATS = ["LP","EP","Single","12\"","7\"","Tape","CD","Digital"];
+    const CONDITIONS = ["Mint (M)","Near Mint (NM)","Very Good+ (VG+)","Very Good (VG)","Good (G)","Poor (P)"];
+    const STORAGE_KEY = "vinyl-tracker.html.v1";
+
+    // --- State ---
+    let items = load();
+    let editingId = null;
+
+    // --- Elements ---
+    const el = (id) => document.getElementById(id);
+    const tbody = el('tbody');
+    const dlg = el('dlg');
+
+    // Populate selects
+    function fillSelect(id, opts){ const s = el(id); s.innerHTML = ''; opts.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; s.appendChild(o); }); }
+    fillSelect('f-format', FORMATS); fillSelect('f-condition', CONDITIONS);
+    // filters
+    (function(){ const f = el('formatFilter'); FORMATS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
+    (function(){ const f = el('condFilter'); CONDITIONS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
+
+    // --- Render ---
+    function render(){
+      const q = el('search').value.trim().toLowerCase();
+      const ff = el('formatFilter').value; const cf = el('condFilter').value; const sb = el('sortBy').value;
+      let list = items.filter(i=> (i.artist + ' ' + i.title + ' ' + (i.label||'') + ' ' + (i.tags||[]).join(' ')).toLowerCase().includes(q));
+      if (ff) list = list.filter(i => i.format === ff);
+      if (cf) list = list.filter(i => i.condition === cf);
+      const [field, dir] = sb.split('-');
+      list.sort((a,b)=>{
+        const va = (a[field] ?? '').toString(); const vb = (b[field] ?? '').toString();
+        if (field === 'price' || field === 'rating') { const na=Number(va||0), nb=Number(vb||0); return dir==='asc'? na-nb : nb-na; }
+        return dir==='asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      });
+
+      tbody.innerHTML = '';
+      for (const i of list){
+        const tr = document.createElement('tr');
+        const coverTd = document.createElement('td');
+        const img = document.createElement('img'); img.className='cover'; img.alt='Cover'; img.src = i.coverUrl || '';
+        if (!i.coverUrl) { img.style.background = '#f3f4f6'; }
+        coverTd.appendChild(img); tr.appendChild(coverTd);
+        const meta = document.createElement('td');
+        const title = document.createElement('div'); title.innerHTML = `<strong>${esc(i.artist)}</strong> — ${esc(i.title)}`; meta.appendChild(title);
+        const line = document.createElement('div'); line.className='muted'; line.textContent = [i.label, i.year, i.format, i.condition].filter(Boolean).join(' • '); meta.appendChild(line);
+        tr.appendChild(meta);
+        const notes = document.createElement('td');
+        const tags = document.createElement('div'); tags.className='badges';
+        (i.tags||[]).forEach(t=>{ const b=document.createElement('span'); b.className='badge'; b.textContent = '#'+t; tags.appendChild(b); });
+        notes.appendChild(tags);
+        if (i.notes) { const p=document.createElement('div'); p.style.marginTop='6px'; p.textContent=i.notes; notes.appendChild(p); }
+        tr.appendChild(notes);
+        const rating = document.createElement('td'); rating.textContent = (i.rating ?? '').toString(); tr.appendChild(rating);
+        const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
+        const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
+        const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten'; ebtn.addEventListener('click', ()=>openEditor(i.id)); actions.appendChild(ebtn);
+        const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px'; dbtn.addEventListener('click', ()=>{ if (confirm('Wirklich löschen?')) { items = items.filter(x=>x.id!==i.id); save(); render(); stats(); } }); actions.appendChild(dbtn);
+        tr.appendChild(actions);
+        tbody.appendChild(tr);
+      }
+
+      // stats
+      stats();
+    }
+
+    function stats(){
+      el('stat-count').textContent = String(items.length);
+      const spent = items.reduce((s,i)=> s + (Number(i.price)||0), 0);
+      el('stat-spent').textContent = new Intl.NumberFormat('de-DE', { style:'currency', currency:'EUR' }).format(spent);
+    }
+
+    function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+    // --- Storage ---
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+    function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
+
+    // --- Editor ---
+    function openEditor(id){
+      editingId = id || crypto.randomUUID();
+      const data = items.find(x=>x.id===id) || { id: editingId, artist:'', title:'', format:'LP', condition:'Very Good+ (VG+)', tags:[], createdAt: new Date().toISOString() };
+      el('dlg-title').textContent = id ? 'Bearbeiten' : 'Neue Platte';
+      el('f-artist').value = data.artist||''; el('f-title').value = data.title||''; el('f-year').value = data.year||''; el('f-label').value = data.label||'';
+      el('f-catalog').value = data.catalog||''; el('f-format').value = data.format||'LP'; el('f-color').value = data.color||''; el('f-condition').value = data.condition||'';
+      el('f-rating').value = data.rating ?? '';
+      el('f-price').value = data.price ?? '';
+      el('f-date').value = data.purchaseDate ? data.purchaseDate.slice(0,10) : '';
+      el('f-cover').value = data.coverUrl || '';
+      el('f-tags').value = (data.tags||[]).join(', ');
+      el('f-notes').value = data.notes || '';
+      dlg.showModal();
+    }
+
+    function saveEditor(){
+      const rec = {
+        id: editingId || crypto.randomUUID(),
+        artist: el('f-artist').value.trim(),
+        title: el('f-title').value.trim(),
+        year: el('f-year').value.trim(),
+        label: el('f-label').value.trim(),
+        catalog: el('f-catalog').value.trim(),
+        format: el('f-format').value,
+        color: el('f-color').value.trim(),
+        condition: el('f-condition').value,
+        rating: Number(el('f-rating').value||0),
+        price: el('f-price').value ? Number(el('f-price').value) : undefined,
+        purchaseDate: el('f-date').value ? new Date(el('f-date').value).toISOString() : undefined,
+        coverUrl: el('f-cover').value.trim(),
+        tags: el('f-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
+        notes: el('f-notes').value.trim(),
+        createdAt: items.find(x=>x.id===editingId)?.createdAt || new Date().toISOString()
+      };
+      if (!rec.artist || !rec.title) { alert('Bitte Künstler und Titel ausfüllen.'); return; }
+      const i = items.findIndex(x=>x.id===rec.id);
+      if (i>=0) items[i] = rec; else items.unshift(rec);
+      save(); render(); dlg.close();
+    }
+
+    // --- Barcode Lookup ---
+    async function lookupByBarcode(code){
+      const status = el('lookup-status');
+      status.textContent = 'Suche…';
+      const clean = (code||'').replace(/\D/g,'');
+      if (!clean) { status.textContent = 'Kein gültiger Code.'; return null; }
+
+      // 1) MusicBrainz Release-Suche
+      try {
+        const mbUrl = `https://musicbrainz.org/ws/2/release/?query=barcode:${clean}&fmt=json`;
+        const mb = await fetch(mbUrl, { headers: { 'User-Agent': 'VinylTrackerHTML/1.0 (barcode lookup)', 'Accept': 'application/json' } });
+        const data = await mb.json();
+        const hit = data.releases && data.releases[0];
+        if (hit){
+          const artist = (hit["artist-credit"]||[]).map(a=> a.name || a.artist?.name).filter(Boolean).join(', ');
+          const title = hit.title || '';
+          const year = (hit.date||'').slice(0,4);
+          const label = (hit["label-info"]||[])[0]?.label?.name || '';
+          const catalog = (hit["label-info"]||[])[0]?.catalog_number || '';
+          const mbid = hit.id;
+          // Cover Art Archive (Release → front)
+          let cover = '';
+          try {
+            const caa = await fetch(`https://coverartarchive.org/release/${mbid}`);
+            if (caa.ok) {
+              const ca = await caa.json();
+              const front = (ca.images||[]).find(img=>img.front) || ca.images?.[0];
+              cover = front?.thumbnails?.small || front?.image || '';
+            }
+          } catch {}
+          status.textContent = 'Treffer aus MusicBrainz';
+          return { artist, title, year, label, catalog, coverUrl: cover };
+        }
+      } catch (e){ console.warn(e); }
+
+      // 2) Optional: Discogs (wenn Token vorhanden)
+      const token = el('discogsToken').value.trim();
+      if (token){
+        try {
+          const dcUrl = `https://api.discogs.com/database/search?barcode=${clean}&type=release&token=${encodeURIComponent(token)}`;
+          const dc = await fetch(dcUrl, { headers: { 'User-Agent': 'VinylTrackerHTML/1.0' } });
+          const data = await dc.json();
+          const first = (data.results||[])[0];
+          if (first){
+            const details = { artist: (first.artist || (first.title||'').split(' - ')[0] || ''), title: (first.title||'').split(' - ').slice(1).join(' - '), year: first.year? String(first.year):'', label: (first.label||[])[0]||'', catalog: (first.catno||''), coverUrl: first.cover_image||first.thumb||'' };
+            status.textContent = 'Treffer aus Discogs';
+            return details;
+          }
+        } catch (e){ console.warn(e); }
+      }
+
+      status.textContent = 'Nichts gefunden.';
+      return null;
+    }
+
+    // Autofill into editor
+    async function autofillFromBarcode(){
+      const code = el('barcode').value;
+      const info = await lookupByBarcode(code);
+      if (!info){ return; }
+      openEditor(null);
+      el('f-artist').value = info.artist || '';
+      el('f-title').value = info.title || '';
+      el('f-year').value = info.year || '';
+      el('f-label').value = info.label || '';
+      el('f-catalog').value = info.catalog || '';
+      el('f-cover').value = info.coverUrl || '';
+    }
+
+    // --- Events ---
+    el('btn-add').addEventListener('click', ()=> openEditor(null));
+    el('btn-save').addEventListener('click', (e)=>{ e.preventDefault(); saveEditor(); });
+    el('btn-cancel').addEventListener('click', (e)=>{ e.preventDefault(); dlg.close(); });
+
+    el('btn-reset').addEventListener('click', ()=>{ el('search').value=''; el('formatFilter').value=''; el('condFilter').value=''; el('sortBy').value='createdAt-desc'; render(); });
+    ['search','formatFilter','condFilter','sortBy'].forEach(id=> el(id).addEventListener('input', render));
+
+    el('btn-lookup').addEventListener('click', ()=> autofillFromBarcode());
+    el('barcode').addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ e.preventDefault(); autofillFromBarcode(); } });
+
+    // Export / Import
+    el('btn-export-json').addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+      download(blob, `vinyl-export-${new Date().toISOString().slice(0,10)}.json`);
+    });
+    el('btn-export-csv').addEventListener('click', ()=>{
+      const headers = ["artist","title","year","label","catalog","format","color","condition","tags","notes","rating","purchaseDate","price","coverUrl","id","createdAt"]; 
+      const rows = items.map(i => headers.map(h => {
+        const val = h === 'tags' ? (i.tags||[]).join('|') : (i[h] ?? '');
+        const s = String(val).replaceAll('"', '""');
+        return '"'+s+'"';
+      }).join(','));
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      download(blob, `vinyl-export-${new Date().toISOString().slice(0,10)}.csv`);
+    });
+    el('btn-import').addEventListener('click', ()=> el('file-import').click());
+    el('file-import').addEventListener('change', async (e)=>{
+      const file = e.target.files?.[0]; if (!file) return;
+      try { const text = await file.text(); const parsed = JSON.parse(text); if (!Array.isArray(parsed)) throw new Error(); items = parsed; save(); render(); }
+      catch { alert('Konnte Datei nicht laden (erwarte JSON aus Export).'); }
+      finally { e.target.value=''; }
+    });
+
+    function download(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }
+
+    // initial
+    render();
+  })();
+  </script>
+</body>
+</html>
