@@ -7,45 +7,79 @@
 <meta name="description" content="Einfacher Vinyl-Tracker, läuft komplett im Browser.">
 <link rel="icon" href="data:,">
 <style>
-  :root { --bg:#fafafa; --fg:#111; --muted:#666; --brand:#2563eb; --card:#fff; --border:#e5e7eb; }
-  html,body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; background:var(--bg); color:var(--fg); }
-  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
-  header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; }
-  h1 { margin:0; font-size: clamp(20px, 3vw, 28px); }
-  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; }
-  .grid { display:grid; gap:10px; }
-  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-  label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
-  input, textarea, select { width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-size:14px; }
-  textarea { resize:vertical; }
-  button { appearance:none; border:1px solid var(--border); background:#fff; padding:10px 12px; border-radius:10px; cursor:pointer; font-size:14px; }
-  button.primary { background:var(--brand); color:#fff; border-color:transparent; }
-  button.ghost { background:transparent; }
-  .actions { display:flex; gap:8px; flex-wrap:wrap; }
-  .table { width:100%; border-collapse: collapse; }
-  .table th, .table td { text-align:left; padding:10px; border-bottom:1px solid var(--border); vertical-align:top; }
-  .table th { font-weight:600; font-size:13px; color:#444; }
-  .cover { width:58px; height:58px; border-radius:8px; object-fit:cover; background:#f0f0f0; display:block; }
-  .badges { display:flex; gap:6px; flex-wrap:wrap; }
-  .badge { padding:2px 8px; border-radius:999px; font-size:12px; background:#f3f4f6; border:1px solid var(--border); }
-  .muted { color:var(--muted); }
-  .hidden { display:none; }
-  dialog { border:none; border-radius:16px; padding:0; max-width:720px; width:calc(100% - 24px); }
-  dialog .dialog-body { padding:16px; }
-  dialog::backdrop { background:rgba(0,0,0,0.25); }
-  .stats { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
-  .stat { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
-  .stat .v { font-weight:700; font-size:22px; }
-  .pill { border:1px dashed var(--border); padding:8px 10px; border-radius:10px; }
-  .note { font-size:12px; color:#555; }
-  .ok { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; }
+  :root {
+      --accent: #e30613;
+      --accent-2: #ff6b73;
+      --accent-dark: #c00510;
+      --bg: #0f1216;
+      --card: #161a20;
+      --card-2: #1b2028;
+      --text: #e9eef5;
+      --muted: #9aa3af;
+      --ring: rgba(0,0,0,0.28);
+      --ring-2: rgba(255,255,255,0.06);
+      --chip: #232a34;
+      --ok:#20c997;
+    }
+    [data-theme="light"]{
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --card-2: #f8fafc;
+      --text: #0f172a;
+      --muted: #475569;
+      --ring: rgba(15,23,42,0.1);
+      --ring-2: rgba(0,0,0,0.06);
+      --chip: #eef2f7;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: radial-gradient(1200px 900px at 80% -20%, #1c212a 0%, var(--bg) 40%) no-repeat, var(--bg); color:var(--text);}
+    a{color:inherit}
+    .container{max-width:1200px;margin:0 auto;padding:18px 20px 100px;}
+    header{padding:28px 20px 8px; position: sticky; top: 0; backdrop-filter: blur(8px); background: linear-gradient(to bottom, rgba(15,18,22,.72), rgba(15,18,22,.32) 60%, transparent); z-index:10;}
+    [data-theme="light"] header{ background: linear-gradient(to bottom, rgba(255,255,255,.9), rgba(255,255,255,.6) 60%, transparent); }
+    .head{ max-width: 1200px; margin: 0 auto; display:flex; align-items:center; justify-content: space-between; gap: 10px; }
+    h1{margin:0;letter-spacing:.6px; font-size: clamp(22px, 3.5vw, 34px);}
+    .sub{ color: var(--muted); font-size:.95rem; }
+    .theme-toggle{ border:1px solid var(--ring-2); background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%); color: inherit; border-radius: 999px; padding: 8px 12px; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow: 0 4px 16px var(--ring); }
+    .card { background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%); border: 1px solid var(--ring-2); border-radius: 14px; box-shadow: 0 8px 30px var(--ring); }
+    .stats{ display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+    .stat{ background: linear-gradient(180deg, var(--card-2) 0%, var(--card) 100%); border:1px solid var(--ring-2); border-radius: 12px; padding:12px; }
+    .stat .v{ font-weight:800; font-size:22px; }
+    label{ font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+    input, textarea, select { width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid #2a313b; background:#0f1319; color:var(--text); font-size:14px; }
+    [data-theme="light"] input,[data-theme="light"] textarea,[data-theme="light"] select{ background:#fff; border-color:#e5e7eb; color:var(--text); }
+    textarea{ resize:vertical; }
+    .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    button { appearance:none; border:1px solid var(--ring-2); background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%); color:var(--text); padding:10px 12px; border-radius:10px; cursor:pointer; font-size:14px; box-shadow: 0 6px 18px var(--ring); }
+    button.primary{ background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dark) 100%); color:#fff; border-color:transparent; box-shadow: 0 8px 16px rgba(227,6,19,.3); font-weight:700; }
+    button.ghost{ background:transparent; }
+    .muted{ color:var(--muted); }
+    .grid{ display:grid; gap:10px; }
+    .grid-2{ grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .table{ width:100%; border-collapse:collapse; }
+    .table th, .table td { text-align:left; padding:10px; border-bottom:1px solid var(--ring-2); vertical-align:top; }
+    .table th { font-weight:600; font-size:13px; color:var(--muted); }
+    .cover { width:58px; height:58px; border-radius:8px; object-fit:cover; background:#222; display:block; }
+    .badges { display:flex; gap:6px; flex-wrap:wrap; }
+    .badge { padding:2px 8px; border-radius:999px; font-size:12px; background:var(--chip); border:1px solid var(--ring-2); }
+    .hidden{ display:none; }
+    dialog { border:none; border-radius:16px; padding:0; max-width:720px; width:calc(100% - 24px); background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%); color:var(--text); border:1px solid var(--ring-2); }
+    dialog .dialog-body { padding:16px; }
+    dialog::backdrop { background:rgba(0,0,0,0.55); }
+    .ok{ display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 8px; border:1px solid var(--ring-2); border-radius:999px; background:var(--chip); color:var(--text); }
 </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>🎵 Schallplatten-Tracker (HTML) <span class="muted">– mit Barcode-Autofill</span></h1>
+  <div class="head">
+    <div>
+      <h1>SCHALLPLATTEN-TRACKER</h1>
+      <div class="sub">mit Barcode-Autofill</div>
+    </div>
+    <div class="row right">
+      <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
       <div class="actions">
         <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firebase lädt…</span>
         <button id="btn-export-json">Export JSON</button>
@@ -53,7 +87,9 @@
         <button id="btn-import">Import JSON</button>
         <input id="file-import" type="file" accept="application/json" class="hidden" />
       </div>
-    </header>
+    </div>
+  </div>
+</header>
 
     <section class="stats">
       <div class="stat"><div class="muted">Gesamtanzahl</div><div class="v" id="stat-count">0</div></div>
@@ -163,14 +199,9 @@
     </dialog>
   </div>
 
-  <!-- Firebase (ES Modules, funktioniert auf GitHub Pages ohne Bundler) -->
+  <!-- Firebase (ES Modules) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    // Falls du später weitere Produkte nutzt: einfach zusätzlich importieren, z. B.:
-    // import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-    // import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
-    // import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-
     const firebaseConfig = {
       apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
       authDomain: "platten-c1817.firebaseapp.com",
@@ -181,14 +212,12 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    // Kleines visuelles Feedback im Header
     const s = document.getElementById("firebase-status");
     if (s) s.textContent = "✅ Firebase initialisiert";
-    // Optional global verfügbar machen (Debugging)
     window.firebaseApp = app;
   </script>
 
-  <!-- Deine App-Logik -->
+  <!-- Deine App-Logik (unverändert) -->
   <script>
   (function(){
     const FORMATS = ["LP","EP","Single","12\"","7\"","Tape","CD","Digital"];
@@ -230,7 +259,7 @@
         const tr = document.createElement('tr');
         const coverTd = document.createElement('td');
         const img = document.createElement('img'); img.className='cover'; img.alt='Cover'; img.src = i.coverUrl || '';
-        if (!i.coverUrl) { img.style.background = '#f3f4f6'; }
+        if (!i.coverUrl) { img.style.background = '#222'; }
         coverTd.appendChild(img); tr.appendChild(coverTd);
         const meta = document.createElement('td');
         const title = document.createElement('div'); title.innerHTML = `<strong>${esc(i.artist)}</strong> — ${esc(i.title)}`; meta.appendChild(title);
@@ -417,6 +446,21 @@
     // initial
     render();
   })();
+  </script>
+
+  <script>
+    (function(){
+      const els = { themeToggle: document.getElementById('themeToggle'), themeLabel: document.getElementById('themeLabel') };
+      function applyTheme(t){
+        document.documentElement.setAttribute('data-theme', t);
+        if (els.themeLabel) els.themeLabel.textContent = t === 'light' ? 'Light' : 'Dark';
+        if (els.themeToggle) els.themeToggle.firstChild.nodeValue = t === 'light' ? '☀️' : '🌙';
+        localStorage.setItem('theme', t);
+      }
+      const saved = localStorage.getItem('theme') || 'dark';
+      applyTheme(saved);
+      if (els.themeToggle) els.themeToggle.addEventListener('click', ()=> applyTheme(document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light'));
+    })();
   </script>
 </body>
 </html>
