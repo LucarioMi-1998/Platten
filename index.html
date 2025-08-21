@@ -200,13 +200,12 @@
   </div>
 
   
+  
   <!-- Firebase (ES Modules) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-    import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
-    // Deine Firebase Config (wie angegeben)
     const firebaseConfig = {
       apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
       authDomain: "platten-c1817.firebaseapp.com",
@@ -216,30 +215,19 @@
       appId: "1:376624319679:web:28e871bf481b27342e4a0a"
     };
 
-    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
     const db = getFirestore(app);
 
-    const statusEl = document.getElementById("firebase-status");
-    if (statusEl) statusEl.textContent = "🔌 Verbinde mit Firebase…";
+    const s = document.getElementById("firebase-status");
+    if (s) s.textContent = "✅ Firestore verbunden (ohne Auth)";
 
-    signInAnonymously(auth).catch(err => {
-      console.warn("Auth error", err);
-      if (statusEl) statusEl.textContent = "⚠️ Auth Fehler";
-    });
+    window.firebaseApp = app;
+    window.firebaseDB = db;
 
-    onAuthStateChanged(auth, user => {
-      if (user) {
-        if (statusEl) statusEl.textContent = "✅ Verbunden";
-        window.firebaseApp = app;
-        window.firebaseAuth = auth;
-        window.firebaseDB = db;
-        window.firebaseUID = user.uid;
-        document.dispatchEvent(new CustomEvent("firebase-ready", { detail: { uid: user.uid } }));
-      }
-    });
+    // Sofort signalisieren, dass Firestore verfügbar ist
+    document.dispatchEvent(new CustomEvent('firebase-ready', { detail: {} }));
   </script>
+
 
 
   <!-- Deine App-Logik (unverändert) -->
@@ -318,14 +306,14 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
     function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
     
-    // --- Storage (Firestore mit Fallback auf localStorage) ---
+    
+    // --- Storage (öffentliche Firestore-Collection, keine Auth) ---
     async function fsLoadAll(){
       const status = document.getElementById('firebase-status');
       try{
-        if (!window.firebaseDB || !window.firebaseUID) return null;
-        const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
-        const db = window.firebaseDB;
-        const colRef = collection(db, 'users', window.firebaseUID, 'records');
+        if (!window.firebaseDB) return null;
+        const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
+        const colRef = collection(window.firebaseDB, 'publicRecords');
         const snap = await getDocs(colRef);
         const arr = [];
         snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
@@ -339,32 +327,33 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
 
     async function fsUpsert(item){
       try{
-        if (!window.firebaseDB || !window.firebaseUID) return false;
+        if (!window.firebaseDB) return false;
         const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
-        const ref = doc(window.firebaseDB, 'users', window.firebaseUID, 'records', item.id);
+        const ref = doc(window.firebaseDB, 'publicRecords', item.id);
         await setDoc(ref, item, { merge: true });
-        return true
+        return true;
       } catch(e){
         console.warn('Firestore upsert failed', e);
-        return false
+        return false;
       }
     }
 
     async function fsDelete(id){
       try{
-        if (!window.firebaseDB || !window.firebaseUID) return false;
+        if (!window.firebaseDB) return false;
         const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
-        const ref = doc(window.firebaseDB, 'users', window.firebaseUID, 'records', id);
+        const ref = doc(window.firebaseDB, 'publicRecords', id);
         await deleteDoc(ref);
-        return true
+        return true;
       } catch(e){
         console.warn('Firestore delete failed', e);
-        return false
+        return false;
       }
     }
 
     function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
     function loadLocal(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
+ catch{ return []; } }
 
 
     // --- Editor ---
