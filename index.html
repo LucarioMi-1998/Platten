@@ -81,7 +81,7 @@
     <div class="row right">
       <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
       <div class="actions">
-        <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firebase lädt…</span>
+        <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firestore lädt…</span>
         <button id="btn-export-json">Export JSON</button>
         <button id="btn-export-csv">Export CSV</button>
         <button id="btn-import">Import JSON</button>
@@ -307,6 +307,7 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
 
     
     
+    
     // --- Storage (öffentliche Firestore-Collection, keine Auth) ---
     async function fsLoadAll(){
       const status = document.getElementById('firebase-status');
@@ -353,6 +354,30 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
 
     function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
     function loadLocal(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
+
+    function byIdMap(list){ const m = new Map(); for (const r of list) m.set(r.id, r); return m; }
+    function parseIso(s){ try { return Date.parse(s||''); } catch { return 0; } }
+
+    // Merge: prefer newer 'updatedAt', else prefer cloud
+    function mergeLocalCloud(localArr, cloudArr){
+      const out = new Map();
+      const L = byIdMap(localArr || []);
+      const C = byIdMap(cloudArr || []);
+      // union keys
+      const keys = new Set([...L.keys(), ...C.keys()]);
+      for (const k of keys){
+        const l = L.get(k); const c = C.get(k);
+        if (l && c){
+          const tl = parseIso(l.updatedAt || l.createdAt);
+          const tc = parseIso(c.updatedAt || c.createdAt);
+          out.set(k, (tl >= tc) ? l : c);
+        } else {
+          out.set(k, l || c);
+        }
+      }
+      return [...out.values()];
+    }
+ catch{ return []; } }
  catch{ return []; } }
 
 
@@ -389,13 +414,15 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
         coverUrl: el('f-cover').value.trim(),
         tags: el('f-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
         notes: el('f-notes').value.trim(),
-        createdAt: items.find(x=>x.id===editingId)?.createdAt || new Date().toISOString()
+        createdAt: items.find(x=>x.id===editingId)?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       if (!rec.artist || !rec.title) { alert('Bitte Künstler und Titel ausfüllen.'); return; }
       const i = items.findIndex(x=>x.id===rec.id);
       if (i>=0) items[i] = rec; else items.unshift(rec);
-      fsUpsert(rec).then((ok)=>{ if(!ok) saveLocal(); }).finally(()=>{ render(); dlg.close(); });
-    }
+      // Write to cloud and local for consistency
+      fsUpsert(rec).finally(()=>{ saveLocal(); render(); dlg.close(); });
+}
 
     // --- Barcode Lookup ---
     async function lookupByBarcode(code){
@@ -504,8 +531,29 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
 
     function download(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }
 
-    // Firebase ready → Cloud laden
+    
+    // Firebase ready → Cloud laden & mergen
     document.addEventListener('firebase-ready', async () => {
+      const local = loadLocal();
+      const cloud = await fsLoadAll();
+      if (Array.isArray(cloud)) {
+        if ((!cloud || cloud.length===0) && local && local.length){
+          // seed cloud with local
+          for (const r of local){ await fsUpsert(r); }
+          items = local;
+        } else if ((!local || local.length===0) && cloud.length){
+          items = cloud;
+          saveLocal();
+        } else {
+          items = mergeLocalCloud(local, cloud);
+          // push newer local changes to cloud
+          for (const r of items){ await fsUpsert(r); }
+          saveLocal();
+        }
+        render();
+      }
+    });
+
       const cloud = await fsLoadAll();
       if (Array.isArray(cloud)) {
         items = cloud;
