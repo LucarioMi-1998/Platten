@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🎵 Schallplatten-Tracker – mit Barcode & Firestore (Lite)</title>
+<title>🎵 Schallplatten-Tracker – Barcode & Firestore (Lite, Auto-Sync)</title>
 <meta name="description" content="Vinyl-Tracker im Browser mit automatischem Cloud-Sync über Firestore Lite.">
 <link rel="icon" href="data:,">
 <style>
@@ -20,6 +20,7 @@
       --ring-2: rgba(255,255,255,0.06);
       --chip: #232a34;
       --ok:#20c997;
+      --err:#ef4444;
     }
     [data-theme="light"]{
       --bg: #f6f8fb;
@@ -68,6 +69,7 @@
     dialog .dialog-body { padding:16px; }
     dialog::backdrop { background:rgba(0,0,0,0.55); }
     .ok{ display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 8px; border:1px solid var(--ring-2); border-radius:999px; background:var(--chip); color:var(--text); }
+    .ok.err{ border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.08); color: #fecaca; }
 </style>
 </head>
 <body>
@@ -81,7 +83,7 @@
         <div class="row right">
           <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
           <div class="actions">
-            <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firebase lädt…</span>
+            <span id="firebase-status" class="ok" title="Firebase/Synchronisation">🔌 Firebase lädt…</span>
             <button id="btn-export-json">Export JSON</button>
             <button id="btn-export-csv">Export CSV</button>
             <button id="btn-import">Import JSON</button>
@@ -202,9 +204,8 @@
   <!-- Firebase (ES Modules) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    /* 👉 Firestore LITE statt Full */
+    /* Firestore LITE */
     import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-lite.js";
-    /* Auth ist optional bei offenen Regeln – lassen wir weg, damit es überall läuft */
 
     const firebaseConfig = {
       apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
@@ -219,14 +220,16 @@
     const db = getFirestore(app);
 
     const s = document.getElementById("firebase-status");
-    const setStatus = (txt)=>{ if(s) s.textContent = txt; };
-    setStatus("✅ Firebase bereit (Lite)");
+    const ok = (msg)=>{ if(s){ s.classList.remove('err'); s.textContent = `✅ ${msg}`; } }
+    const err = (msg)=>{ if(s){ s.classList.add('err'); s.textContent = `❌ ${msg}`; } }
 
-    // --- Cloud API (globales Doc: vinyl/latest) ---
+    ok("Firebase bereit (Lite)");
+
+    // --- Cloud API: globales Doc "vinyl/latest" ---
     const REF = doc(db, "vinyl", "latest");
 
     async function cloudSave(items, meta = {}){
-      console.log("[cloudSave] write → vinyl/latest", {count: items.length});
+      console.log("[cloudSave] → vinyl/latest", {count: items.length});
       const payload = {
         items,
         meta: { ...meta, updatedAt: serverTimestamp() }
@@ -234,25 +237,30 @@
       try {
         await setDoc(REF, payload, { merge: false });
         console.log("[cloudSave] OK");
+        ok("Cloud OK");
       } catch (e){
         console.error("[cloudSave] FAIL", e);
+        err(`Cloud-Fehler (save): ${e?.code || e?.message || e}`);
         throw e;
       }
     }
 
     async function cloudLoad(){
-      console.log("[cloudLoad] read ← vinyl/latest");
+      console.log("[cloudLoad] ← vinyl/latest");
       try {
         const snap = await getDoc(REF);
         if (!snap.exists()){
-          console.log("[cloudLoad] leer (kein Dokument)");
+          console.log("[cloudLoad] leer");
+          ok("Cloud leer");
           return null;
         }
         const data = snap.data();
         console.log("[cloudLoad] OK, items:", Array.isArray(data.items) ? data.items.length : 0);
+        ok("Cloud OK");
         return data;
       } catch (e){
         console.error("[cloudLoad] FAIL", e);
+        err(`Cloud-Fehler (load): ${e?.code || e?.message || e}`);
         throw e;
       }
     }
@@ -263,8 +271,7 @@
       autoInitialLoad: null
     };
 
-    // 🔧 Fallback: starte Auto-Load nach kurzer Zeit,
-    // damit es auch bei file:// oder restriktiven Browsern losläuft
+    // Fallback: starte Auto-Load nach kurzer Zeit (auch bei file:// / Handy)
     setTimeout(()=> {
       if (window.firebaseCloud?.autoInitialLoad) window.firebaseCloud.autoInitialLoad();
     }, 300);
@@ -324,7 +331,19 @@
         const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
         const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
         const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten'; ebtn.addEventListener('click', ()=>openEditor(i.id)); actions.appendChild(ebtn);
-        const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px'; dbtn.addEventListener('click', ()=>{ if (confirm('Wirklich löschen?')) { items = items.filter(x=>x.id!==i.id); save(); render(); stats(); } }); actions.appendChild(dbtn);
+        const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px';
+        dbtn.addEventListener('click', ()=>{
+          try{
+            if (confirm('Wirklich löschen?')) {
+              items = items.filter(x=>x.id!==i.id);
+              save();
+              render(); // stats() wird in render aufgerufen
+            }
+          } catch(e){
+            console.warn("Delete failed:", e);
+          }
+        });
+        actions.appendChild(dbtn);
         tr.appendChild(actions);
         tbody.appendChild(tr);
       }
@@ -352,7 +371,7 @@
             await window.firebaseCloud.cloudSave(items, meta);
           }
         } catch (e){
-          console.warn("Cloud save failed (offline/Regeln/Netz):", e?.code || e?.message || e);
+          console.warn("Cloud save failed:", e?.code || e?.message || e);
         }
       }, 800);
     }
@@ -517,8 +536,16 @@
     async function initialCloudHydrate(){
       try {
         if (!window.firebaseCloud?.cloudLoad) { render(); return; }
-        const cloud = await window.firebaseCloud.cloudLoad(); // { items, meta }
-        if (!cloud || !Array.isArray(cloud.items)) { render(); return; }
+        const cloud = await window.firebaseCloud.cloudLoad(); // { items, meta } | null
+
+        // Falls Cloud leer ist, aber lokal schon Daten existieren → hochschieben
+        if (!cloud || !Array.isArray(cloud.items)){
+          if (Array.isArray(items) && items.length > 0){
+            try { await window.firebaseCloud.cloudSave(items, loadMeta()); } catch {}
+          }
+          render(); 
+          return;
+        }
 
         const localMeta = loadMeta();
         const cloudTS = cloud.meta?.updatedAt;
