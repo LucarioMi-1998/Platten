@@ -3,73 +3,50 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🎵 Schallplatten-Tracker – Barcode & Firestore (Lite, Auto-Sync)</title>
-<meta name="description" content="Vinyl-Tracker im Browser mit automatischem Cloud-Sync über Firestore Lite.">
+<title>🎵 Schallplatten-Tracker – Firestore Lite Auto-Sync</title>
+<meta name="description" content="Vinyl-Tracker mit Barcode-Autofill und automatischem Cloud-Sync via Firestore Lite.">
 <link rel="icon" href="data:,">
 <style>
   :root {
-      --accent: #e30613;
-      --accent-2: #ff6b73;
-      --accent-dark: #c00510;
-      --bg: #0f1216;
-      --card: #161a20;
-      --card-2: #1b2028;
-      --text: #e9eef5;
-      --muted: #9aa3af;
-      --ring: rgba(0,0,0,0.28);
-      --ring-2: rgba(255,255,255,0.06);
-      --chip: #232a34;
-      --ok:#20c997;
-      --err:#ef4444;
-    }
-    [data-theme="light"]{
-      --bg: #f6f8fb;
-      --card: #ffffff;
-      --card-2: #f8fafc;
-      --text: #0f172a;
-      --muted: #475569;
-      --ring: rgba(15,23,42,0.1);
-      --ring-2: rgba(0,0,0,0.06);
-      --chip: #eef2f7;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: radial-gradient(1200px 900px at 80% -20%, #1c212a 0%, var(--bg) 40%) no-repeat, var(--bg); color:var(--text);}
-    a{color:inherit}
-    .container{max-width:1200px;margin:0 auto;padding:18px 20px 100px;}
-    header{padding:28px 20px 8px; position: sticky; top: 0; backdrop-filter: blur(8px); background: linear-gradient(to bottom, rgba(15,18,22,.72), rgba(15,18,22,.32) 60%, transparent); z-index:10;}
-    [data-theme="light"] header{ background: linear-gradient(to bottom, rgba(255,255,255,.9), rgba(255,255,255,.6) 60%, transparent); }
-    .head{ max-width: 1200px; margin: 0 auto; display:flex; align-items:center; justify-content: space-between; gap: 10px; }
-    h1{margin:0;letter-spacing:.6px; font-size: clamp(22px, 3.5vw, 34px);}
-    .sub{ color: var(--muted); font-size:.95rem; }
-    .theme-toggle{ border:1px solid var(--ring-2); background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%); color: inherit; border-radius: 999px; padding: 8px 12px; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow: 0 4px 16px var(--ring); }
-    .card { background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%); border: 1px solid var(--ring-2); border-radius: 14px; box-shadow: 0 8px 30px var(--ring); }
-    .stats{ display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
-    .stat{ background: linear-gradient(180deg, var(--card-2) 0%, var(--card) 100%); border:1px solid var(--ring-2); border-radius: 12px; padding:12px; }
-    .stat .v{ font-weight:800; font-size:22px; }
-    label{ font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
-    input, textarea, select { width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid #2a313b; background:#0f1319; color:var(--text); font-size:14px; }
-    [data-theme="light"] input,[data-theme="light"] textarea,[data-theme="light"] select{ background:#fff; border-color:#e5e7eb; color:var(--text); }
-    textarea{ resize:vertical; }
-    .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-    button { appearance:none; border:1px solid var(--ring-2); background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%); color:var(--text); padding:10px 12px; border-radius:10px; cursor:pointer; font-size:14px; box-shadow: 0 6px 18px var(--ring); }
-    button.primary{ background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dark) 100%); color:#fff; border-color:transparent; box-shadow: 0 8px 16px rgba(227,6,19,.3); font-weight:700; }
-    button.ghost{ background:transparent; }
-    .muted{ color:var(--muted); }
-    .grid{ display:grid; gap:10px; }
-    .grid-2{ grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-    .table{ width:100%; border-collapse:collapse; }
-    .table th, .table td { text-align:left; padding:10px; border-bottom:1px solid var(--ring-2); vertical-align:top; }
-    .table th { font-weight:600; font-size:13px; color:var(--muted); }
-    .cover { width:58px; height:58px; border-radius:8px; object-fit:cover; background:#222; display:block; }
-    .badges { display:flex; gap:6px; flex-wrap:wrap; }
-    .badge { padding:2px 8px; border-radius:999px; font-size:12px; background:var(--chip); border:1px solid var(--ring-2); }
-    .hidden{ display:none; }
-    dialog { border:none; border-radius:16px; padding:0; max-width:720px; width:calc(100% - 24px); background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%); color:var(--text); border:1px solid var(--ring-2); }
-    dialog .dialog-body { padding:16px; }
-    dialog::backdrop { background:rgba(0,0,0,0.55); }
-    .ok{ display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 8px; border:1px solid var(--ring-2); border-radius:999px; background:var(--chip); color:var(--text); }
-    .ok.err{ border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.08); color: #fecaca; }
+    --accent:#e30613; --accent-dark:#c00510;
+    --bg:#0f1216; --card:#161a20; --card-2:#1b2028; --text:#e9eef5; --muted:#9aa3af;
+    --ring:rgba(0,0,0,.28); --ring-2:rgba(255,255,255,.06); --chip:#232a34;
+  }
+  [data-theme="light"]{
+    --bg:#f6f8fb; --card:#fff; --card-2:#f8fafc; --text:#0f172a; --muted:#475569;
+    --ring:rgba(15,23,42,.1); --ring-2:rgba(0,0,0,.06); --chip:#eef2f7;
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+       background:radial-gradient(1200px 900px at 80% -20%,#1c212a 0%,var(--bg) 40%) no-repeat,var(--bg);color:var(--text)}
+  .container{max-width:1200px;margin:0 auto;padding:18px 20px 100px}
+  header{padding:28px 20px 8px;position:sticky;top:0;backdrop-filter:blur(8px);
+         background:linear-gradient(to bottom,rgba(15,18,22,.72),rgba(15,18,22,.32) 60%,transparent);z-index:10}
+  [data-theme="light"] header{background:linear-gradient(to bottom,rgba(255,255,255,.9),rgba(255,255,255,.6) 60%,transparent)}
+  .head{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:1200px;margin:0 auto}
+  h1{margin:0;letter-spacing:.6px;font-size:clamp(22px,3.5vw,34px)} .sub{color:var(--muted)}
+  .theme-toggle,button{appearance:none;border:1px solid var(--ring-2);border-radius:10px;cursor:pointer}
+  .theme-toggle{background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);padding:8px 12px;box-shadow:0 4px 16px var(--ring)}
+  .card{background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);border:1px solid var(--ring-2);border-radius:14px;box-shadow:0 8px 30px var(--ring)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .stat{background:linear-gradient(180deg,var(--card-2) 0%,var(--card) 100%);border:1px solid var(--ring-2);border-radius:12px;padding:12px}
+  .stat .v{font-weight:800;font-size:22px}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+  input,textarea,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a313b;background:#0f1319;color:var(--text);font-size:14px}
+  [data-theme="light"] input,[data-theme="light"] textarea,[data-theme="light"] select{background:#fff;border-color:#e5e7eb}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  button{background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);color:var(--text);padding:10px 12px;box-shadow:0 6px 18px var(--ring)}
+  button.primary{background:linear-gradient(180deg,var(--accent) 0%,var(--accent-dark) 100%);color:#fff;border-color:transparent;font-weight:700;box-shadow:0 8px 16px rgba(227,6,19,.3)}
+  .muted{color:var(--muted)} .grid{display:grid;gap:10px} .grid-2{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .table{width:100%;border-collapse:collapse} .table th,.table td{padding:10px;border-bottom:1px solid var(--ring-2);vertical-align:top;text-align:left}
+  .table th{font-weight:600;font-size:13px;color:var(--muted)} .cover{width:58px;height:58px;border-radius:8px;object-fit:cover;background:#222}
+  .badges{display:flex;gap:6px;flex-wrap:wrap} .badge{padding:2px 8px;border-radius:999px;font-size:12px;background:var(--chip);border:1px solid var(--ring-2)}
+  .hidden{display:none} dialog{border:none;border-radius:16px;padding:0;max-width:720px;width:calc(100% - 24px);
+         background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);color:var(--text);border:1px solid var(--ring-2)}
+  dialog .dialog-body{padding:16px} dialog::backdrop{background:rgba(0,0,0,.55)}
+  .ok{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 8px;border:1px solid var(--ring-2);border-radius:999px;background:var(--chip)}
+  .ok.err{border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08);color:#fecaca}
+  .dbg{font-size:12px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -78,12 +55,12 @@
       <div class="head">
         <div>
           <h1>SCHALLPLATTEN-TRACKER</h1>
-          <div class="sub">mit Barcode-Autofill + Auto-Cloud-Sync (Firestore Lite)</div>
+          <div class="sub">Barcode-Autofill + Auto-Cloud-Sync (Firestore Lite)</div>
         </div>
         <div class="row right">
           <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
           <div class="actions">
-            <span id="firebase-status" class="ok" title="Firebase/Synchronisation">🔌 Firebase lädt…</span>
+            <span id="firebase-status" class="ok" title="Cloud-Sync">🔌 Firebase lädt…</span>
             <button id="btn-export-json">Export JSON</button>
             <button id="btn-export-csv">Export CSV</button>
             <button id="btn-import">Import JSON</button>
@@ -91,6 +68,14 @@
           </div>
         </div>
       </div>
+      <!-- Mini-Debug -->
+      <details class="dbg"><summary>🛠️ Debug</summary>
+        <div id="debug-log" class="muted"></div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <button id="dbg-write">Cloud Test: Write</button>
+          <button id="dbg-read">Cloud Test: Read</button>
+        </div>
+      </details>
     </header>
 
     <section class="stats">
@@ -176,15 +161,9 @@
             <div><label>Jahr</label><input id="f-year" /></div>
             <div><label>Label</label><input id="f-label" /></div>
             <div><label>Katalog-Nr.</label><input id="f-catalog" /></div>
-            <div>
-              <label>Format</label>
-              <select id="f-format"></select>
-            </div>
+            <div><label>Format</label><select id="f-format"></select></div>
             <div><label>Farbe</label><input id="f-color" placeholder="schwarz / clear / splatter…" /></div>
-            <div>
-              <label>Zustand</label>
-              <select id="f-condition"></select>
-            </div>
+            <div><label>Zustand</label><select id="f-condition"></select></div>
             <div><label>Bewertung (0–5)</label><input id="f-rating" type="number" min="0" max="5" step="1" /></div>
             <div><label>Preis (€)</label><input id="f-price" type="number" min="0" step="0.01" /></div>
             <div><label>Kaufdatum</label><input id="f-date" type="date" /></div>
@@ -204,7 +183,6 @@
   <!-- Firebase (ES Modules) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    /* Firestore LITE */
     import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-lite.js";
 
     const firebaseConfig = {
@@ -219,62 +197,66 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // UI Status helpers
     const s = document.getElementById("firebase-status");
-    const ok = (msg)=>{ if(s){ s.classList.remove('err'); s.textContent = `✅ ${msg}`; } }
-    const err = (msg)=>{ if(s){ s.classList.add('err'); s.textContent = `❌ ${msg}`; } }
+    const dbg = document.getElementById("debug-log");
+    const log = (m)=>{ console.log(m); if(dbg){ const p=document.createElement('div'); p.textContent=String(m); dbg.appendChild(p); } };
+    const ok  = (msg)=>{ if(s){ s.classList.remove('err'); s.textContent = `✅ ${msg}`; } };
+    const err = (msg)=>{ if(s){ s.classList.add('err'); s.textContent = `❌ ${msg}`; } };
 
     ok("Firebase bereit (Lite)");
 
-    // --- Cloud API: globales Doc "vinyl/latest" ---
+    // Cloud API – globales Doc
     const REF = doc(db, "vinyl", "latest");
 
     async function cloudSave(items, meta = {}){
-      console.log("[cloudSave] → vinyl/latest", {count: items.length});
-      const payload = {
-        items,
-        meta: { ...meta, updatedAt: serverTimestamp() }
-      };
-      try {
-        await setDoc(REF, payload, { merge: false });
-        console.log("[cloudSave] OK");
+      log("[cloudSave] → vinyl/latest, items="+items.length);
+      const payload = { items, meta: { ...meta, updatedAt: serverTimestamp() } };
+      try{
+        await setDoc(REF, payload, { merge:false });
         ok("Cloud OK");
-      } catch (e){
-        console.error("[cloudSave] FAIL", e);
-        err(`Cloud-Fehler (save): ${e?.code || e?.message || e}`);
+        log("[cloudSave] OK");
+      }catch(e){
+        const msg = e?.code || e?.message || e;
+        err("Cloud-Fehler (save): "+msg);
+        console.error(e);
         throw e;
       }
     }
 
     async function cloudLoad(){
-      console.log("[cloudLoad] ← vinyl/latest");
-      try {
+      log("[cloudLoad] ← vinyl/latest");
+      try{
         const snap = await getDoc(REF);
-        if (!snap.exists()){
-          console.log("[cloudLoad] leer");
-          ok("Cloud leer");
-          return null;
-        }
+        if(!snap.exists()){ ok("Cloud leer"); log("[cloudLoad] leer"); return null; }
         const data = snap.data();
-        console.log("[cloudLoad] OK, items:", Array.isArray(data.items) ? data.items.length : 0);
         ok("Cloud OK");
+        log("[cloudLoad] OK, items="+(Array.isArray(data.items)?data.items.length:0));
         return data;
-      } catch (e){
-        console.error("[cloudLoad] FAIL", e);
-        err(`Cloud-Fehler (load): ${e?.code || e?.message || e}`);
+      }catch(e){
+        const msg = e?.code || e?.message || e;
+        err("Cloud-Fehler (load): "+msg);
+        console.error(e);
         throw e;
       }
     }
 
-    window.firebaseCloud = {
-      cloudSave,
-      cloudLoad,
-      autoInitialLoad: null
-    };
+    // Exportieren
+    window.firebaseCloud = { cloudSave, cloudLoad, autoInitialLoad:null };
 
-    // Fallback: starte Auto-Load nach kurzer Zeit (auch bei file:// / Handy)
-    setTimeout(()=> {
-      if (window.firebaseCloud?.autoInitialLoad) window.firebaseCloud.autoInitialLoad();
-    }, 300);
+    // Debug-Buttons
+    document.getElementById('dbg-write').addEventListener('click', async (e)=>{
+      e.preventDefault();
+      try{ await cloudSave([{id:"_test", artist:"TEST", title:"WRITE", createdAt:new Date().toISOString()}], {localUpdatedAt:new Date().toISOString()}); }
+      catch{}
+    });
+    document.getElementById('dbg-read').addEventListener('click', async (e)=>{
+      e.preventDefault();
+      try{ await cloudLoad(); } catch{}
+    });
+
+    // Fallback: initiales Cloud-Laden auch ohne Auth-Event
+    setTimeout(()=>{ if(window.firebaseCloud?.autoInitialLoad) window.firebaseCloud.autoInitialLoad(); }, 300);
   </script>
 
   <!-- App-Logik -->
@@ -292,7 +274,12 @@
     const tbody = el('tbody');
     const dlg = el('dlg');
 
-    function fillSelect(id, opts){ const s = el(id); s.innerHTML = ''; opts.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; s.appendChild(o); }); }
+    const uuid = ()=> (crypto?.randomUUID ? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2)+Date.now()));
+
+    function fillSelect(id, opts){
+      const s = el(id); s.innerHTML = '';
+      opts.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; s.appendChild(o); });
+    }
     fillSelect('f-format', FORMATS); fillSelect('f-condition', CONDITIONS);
     (function(){ const f = el('formatFilter'); FORMATS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
     (function(){ const f = el('condFilter'); CONDITIONS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
@@ -300,10 +287,11 @@
     function render(){
       const q = el('search').value.trim().toLowerCase();
       const ff = el('formatFilter').value; const cf = el('condFilter').value; const sb = el('sortBy').value;
-      let list = items.filter(i=> (i.artist + ' ' + i.title + ' ' + (i.label||'') + ' ' + (i.tags||[]).join(' ')).toLowerCase().includes(q));
+      let list = items.filter(i=> (i.artist+' '+i.title+' '+(i.label||'')+' '+(i.tags||[]).join(' ')).toLowerCase().includes(q));
       if (ff) list = list.filter(i => i.format === ff);
       if (cf) list = list.filter(i => i.condition === cf);
       const [field, dir] = sb.split('-');
+
       list.sort((a,b)=>{
         const va = (a[field] ?? '').toString(); const vb = (b[field] ?? '').toString();
         if (field === 'price' || field === 'rating') { const na=Number(va||0), nb=Number(vb||0); return dir==='asc'? na-nb : nb-na; }
@@ -313,37 +301,46 @@
       tbody.innerHTML = '';
       for (const i of list){
         const tr = document.createElement('tr');
+
         const coverTd = document.createElement('td');
         const img = document.createElement('img'); img.className='cover'; img.alt='Cover'; img.src = i.coverUrl || '';
         if (!i.coverUrl) { img.style.background = '#222'; }
         coverTd.appendChild(img); tr.appendChild(coverTd);
+
         const meta = document.createElement('td');
         const title = document.createElement('div'); title.innerHTML = `<strong>${esc(i.artist)}</strong> — ${esc(i.title)}`; meta.appendChild(title);
-        const line = document.createElement('div'); line.className='muted'; line.textContent = [i.label, i.year, i.format, i.condition].filter(Boolean).join(' • '); meta.appendChild(line);
+        const line = document.createElement('div'); line.className='muted';
+        line.textContent = [i.label, i.year, i.format, i.condition].filter(Boolean).join(' • ');
+        meta.appendChild(line);
         tr.appendChild(meta);
+
         const notes = document.createElement('td');
         const tags = document.createElement('div'); tags.className='badges';
         (i.tags||[]).forEach(t=>{ const b=document.createElement('span'); b.className='badge'; b.textContent = '#'+t; tags.appendChild(b); });
         notes.appendChild(tags);
         if (i.notes) { const p=document.createElement('div'); p.style.marginTop='6px'; p.textContent=i.notes; notes.appendChild(p); }
         tr.appendChild(notes);
+
         const color = document.createElement('td'); color.textContent = i.color || ''; tr.appendChild(color);
         const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
+
         const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
-        const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten'; ebtn.addEventListener('click', ()=>openEditor(i.id)); actions.appendChild(ebtn);
+        const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten';
+        ebtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openEditor(i.id); });
+        actions.appendChild(ebtn);
+
         const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px';
-        dbtn.addEventListener('click', ()=>{
-          try{
-            if (confirm('Wirklich löschen?')) {
-              items = items.filter(x=>x.id!==i.id);
-              save();
-              render(); // stats() wird in render aufgerufen
-            }
-          } catch(e){
-            console.warn("Delete failed:", e);
-          }
+        dbtn.addEventListener('click', (ev)=>{
+          ev.preventDefault(); ev.stopPropagation();
+          try {
+            if (!window.confirm('Wirklich löschen?')) return;
+            items = items.filter(x=>x.id!==i.id);
+            save();
+            render(); // stats() kommt aus render()
+          } catch(e){ console.warn("Delete failed:", e); }
         });
         actions.appendChild(dbtn);
+
         tr.appendChild(actions);
         tbody.appendChild(tr);
       }
@@ -358,7 +355,7 @@
 
     function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-    // --- Storage (lokal) + Auto-Cloud-Save ---
+    // Storage + Auto-Cloud-Save
     function save(){
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       const meta = { localUpdatedAt: new Date().toISOString() };
@@ -373,22 +370,25 @@
         } catch (e){
           console.warn("Cloud save failed:", e?.code || e?.message || e);
         }
-      }, 800);
+      }, 600);
     }
     function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
     function saveMeta(meta){ localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta)); }
     function loadMeta(){ try{ return JSON.parse(localStorage.getItem(STORAGE_META_KEY)||'{}'); } catch { return {}; } }
     let _cloudSaveTimer = null;
 
-    // --- Editor ---
+    // Editor
     function openEditor(id){
-      editingId = id || crypto.randomUUID();
-      const data = items.find(x=>x.id===id) || { id: editingId, artist:'', title:'', format:'LP', condition:'Very Good+ (VG+)', tags:[], createdAt: new Date().toISOString() };
+      editingId = id || uuid();
+      const data = items.find(x=>x.id===id) || {
+        id: editingId, artist:'', title:'', format:'LP', condition:'Very Good+ (VG+)', tags:[], createdAt: new Date().toISOString()
+      };
       el('dlg-title').textContent = id ? 'Bearbeiten' : 'Neue Platte';
-      el('f-artist').value = data.artist||''; el('f-title').value = data.title||''; el('f-year').value = data.year||''; el('f-label').value = data.label||'';
-      el('f-catalog').value = data.catalog||''; el('f-format').value = data.format||'LP'; el('f-color').value = data.color||''; el('f-condition').value = data.condition||'';
-      el('f-rating').value = data.rating ?? '';
-      el('f-price').value = data.price ?? '';
+      el('f-artist').value = data.artist||''; el('f-title').value = data.title||'';
+      el('f-year').value = data.year||''; el('f-label').value = data.label||'';
+      el('f-catalog').value = data.catalog||''; el('f-format').value = data.format||'LP';
+      el('f-color').value = data.color||''; el('f-condition').value = data.condition||'';
+      el('f-rating').value = data.rating ?? ''; el('f-price').value = data.price ?? '';
       el('f-date').value = data.purchaseDate ? data.purchaseDate.slice(0,10) : '';
       el('f-cover').value = data.coverUrl || '';
       el('f-tags').value = (data.tags||[]).join(', ');
@@ -398,7 +398,7 @@
 
     function saveEditor(){
       const rec = {
-        id: editingId || crypto.randomUUID(),
+        id: editingId || uuid(),
         artist: el('f-artist').value.trim(),
         title: el('f-title').value.trim(),
         year: el('f-year').value.trim(),
@@ -421,64 +421,49 @@
       save(); render(); dlg.close();
     }
 
-    // --- Barcode Lookup ---
+    // Barcode Lookup (wie gehabt)
     async function lookupByBarcode(code){
-      const status = el('lookup-status');
-      status.textContent = 'Suche…';
+      const status = el('lookup-status'); status.textContent = 'Suche…';
       const clean = (code||'').replace(/\D/g,'');
       if (!clean) { status.textContent = 'Kein gültiger Code.'; return null; }
-
-      // 1) MusicBrainz
       try {
         const mbUrl = `https://musicbrainz.org/ws/2/release/?query=barcode:${clean}&fmt=json`;
         const mb = await fetch(mbUrl, { headers: { 'User-Agent': 'VinylTrackerHTML/1.0 (barcode lookup)', 'Accept': 'application/json' } });
-        const data = await mb.json();
-        const hit = data.releases && data.releases[0];
+        const data = await mb.json(); const hit = data.releases && data.releases[0];
         if (hit){
           const artist = (hit["artist-credit"]||[]).map(a=> a.name || a.artist?.name).filter(Boolean).join(', ');
-          const title = hit.title || '';
-          const year = (hit.date||'').slice(0,4);
-          const label = (hit["label-info"]||[])[0]?.label?.name || '';
-          const catalog = (hit["label-info"]||[])[0]?.catalog_number || '';
-          const mbid = hit.id;
-          let cover = '';
+          const title = hit.title || ''; const year = (hit.date||'').slice(0,4);
+          const label = (hit["label-info"]||[])[0]?.label?.name || ''; const catalog = (hit["label-info"]||[])[0]?.catalog_number || '';
+          const mbid = hit.id; let cover = '';
           try {
             const caa = await fetch(`https://coverartarchive.org/release/${mbid}`);
-            if (caa.ok) {
-              const ca = await caa.json();
-              const front = (ca.images||[]).find(img=>img.front) || ca.images?.[0];
-              cover = front?.thumbnails?.small || front?.image || '';
-            }
+            if (caa.ok) { const ca = await caa.json(); const front = (ca.images||[]).find(img=>img.front) || ca.images?.[0]; cover = front?.thumbnails?.small || front?.image || ''; }
           } catch {}
           status.textContent = 'Treffer aus MusicBrainz';
           return { artist, title, year, label, catalog, coverUrl: cover };
         }
       } catch (e){ console.warn(e); }
 
-      // 2) Discogs (optional)
       const token = el('discogsToken').value.trim();
       if (token){
         try {
           const dcUrl = `https://api.discogs.com/database/search?barcode=${clean}&type=release&token=${encodeURIComponent(token)}`;
           const dc = await fetch(dcUrl, { headers: { 'User-Agent': 'VinylTrackerHTML/1.0' } });
-          const data = await dc.json();
-          const first = (data.results||[])[0];
+          const data = await dc.json(); const first = (data.results||[])[0];
           if (first){
-            const details = { artist: (first.artist || (first.title||'').split(' - ')[0] || ''), title: (first.title||'').split(' - ').slice(1).join(' - '), year: first.year? String(first.year):'', label: (first.label||[])[0]||'', catalog: (first.catno||''), coverUrl: first.cover_image||first.thumb||'' };
-            status.textContent = 'Treffer aus Discogs';
-            return details;
+            const details = { artist:(first.artist || (first.title||'').split(' - ')[0] || ''), title:(first.title||'').split(' - ').slice(1).join(' - '),
+                              year:first.year? String(first.year):'', label:(first.label||[])[0]||'', catalog:(first.catno||''), coverUrl:first.cover_image||first.thumb||'' };
+            status.textContent = 'Treffer aus Discogs'; return details;
           }
         } catch (e){ console.warn(e); }
       }
-
-      status.textContent = 'Nichts gefunden.';
-      return null;
+      status.textContent = 'Nichts gefunden.'; return null;
     }
 
     async function autofillFromBarcode(){
       const code = el('barcode').value;
       const info = await lookupByBarcode(code);
-      if (!info){ return; }
+      if (!info) return;
       openEditor(null);
       el('f-artist').value = info.artist || '';
       el('f-title').value = info.title || '';
@@ -489,89 +474,79 @@
     }
 
     // Events
-    el('btn-add').addEventListener('click', ()=> openEditor(null));
+    el('btn-add').addEventListener('click', (e)=>{ e.preventDefault(); openEditor(null); });
     el('btn-save').addEventListener('click', (e)=>{ e.preventDefault(); saveEditor(); });
     el('btn-cancel').addEventListener('click', (e)=>{ e.preventDefault(); dlg.close(); });
 
-    el('btn-reset').addEventListener('click', ()=>{ el('search').value=''; el('formatFilter').value=''; el('condFilter').value=''; el('sortBy').value='createdAt-desc'; render(); });
+    el('btn-reset').addEventListener('click', (e)=>{ e.preventDefault(); el('search').value=''; el('formatFilter').value=''; el('condFilter').value=''; el('sortBy').value='createdAt-desc'; render(); });
     ['search','formatFilter','condFilter','sortBy'].forEach(id=> el(id).addEventListener('input', render));
 
-    el('btn-lookup').addEventListener('click', ()=> autofillFromBarcode());
+    el('btn-lookup').addEventListener('click', (e)=>{ e.preventDefault(); autofillFromBarcode(); });
     el('barcode').addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ e.preventDefault(); autofillFromBarcode(); } });
 
     // Export / Import
-    el('btn-export-json').addEventListener('click', ()=>{
+    el('btn-export-json').addEventListener('click', (e)=>{
+      e.preventDefault();
       const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
       download(blob, `vinyl-export-${new Date().toISOString().slice(0,10)}.json`);
     });
-    el('btn-export-csv').addEventListener('click', ()=>{
+    el('btn-export-csv').addEventListener('click', (e)=>{
+      e.preventDefault();
       const headers = ["artist","title","year","label","catalog","format","color","condition","tags","notes","rating","purchaseDate","price","coverUrl","id","createdAt"]; 
       const rows = items.map(i => headers.map(h => {
         const val = h === 'tags' ? (i.tags||[]).join('|') : (i[h] ?? '');
         const s = String(val).replaceAll('"', '""');
-        return '"'+s+'"';
+        return `"${s}"`;
       }).join(','));
       const csv = [headers.join(','), ...rows].join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       download(blob, `vinyl-export-${new Date().toISOString().slice(0,10)}.csv`);
     });
-    el('btn-import').addEventListener('click', ()=> el('file-import').click());
+    el('btn-import').addEventListener('click', (e)=>{ e.preventDefault(); el('file-import').click(); });
     el('file-import').addEventListener('change', async (e)=>{
       const file = e.target.files?.[0]; if (!file) return;
-      try { 
-        const text = await file.text(); 
-        const parsed = JSON.parse(text); 
-        if (!Array.isArray(parsed)) throw new Error(); 
-        items = parsed; 
-        save(); 
-        render(); 
-      }
+      try { const text = await file.text(); const parsed = JSON.parse(text); if (!Array.isArray(parsed)) throw new Error(); items = parsed; save(); render(); }
       catch { alert('Konnte Datei nicht laden (erwarte JSON aus Export).'); }
       finally { e.target.value=''; }
     });
 
-    function download(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }
+    function download(blob, name){
+      const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+    }
 
-    // --- Auto-Cloud-Hydrate beim Start ---
+    // Initial Cloud-Hydrate
     async function initialCloudHydrate(){
-      try {
+      try{
         if (!window.firebaseCloud?.cloudLoad) { render(); return; }
-        const cloud = await window.firebaseCloud.cloudLoad(); // { items, meta } | null
-
-        // Falls Cloud leer ist, aber lokal schon Daten existieren → hochschieben
+        const cloud = await window.firebaseCloud.cloudLoad(); // {items, meta} | null
         if (!cloud || !Array.isArray(cloud.items)){
+          // Cloud leer → lokale Daten (falls vorhanden) hochschieben
           if (Array.isArray(items) && items.length > 0){
             try { await window.firebaseCloud.cloudSave(items, loadMeta()); } catch {}
           }
-          render(); 
-          return;
+          render(); return;
         }
-
+        // Cloud vs lokal nach Zeit
         const localMeta = loadMeta();
-        const cloudTS = cloud.meta?.updatedAt;
-        const cloudUpdated = cloudTS?.toMillis ? cloudTS.toMillis() :
-                             (cloudTS?.seconds ? cloudTS.seconds * 1000 : Date.parse(cloudTS || 0)) || 0;
+        const cts = cloud.meta?.updatedAt;
+        const cloudUpdated = cts?.toMillis ? cts.toMillis() : (cts?.seconds ? cts.seconds*1000 : Date.parse(cts||0)) || 0;
         const localUpdated = Date.parse(localMeta?.localUpdatedAt || 0) || 0;
 
-        const isLocalEmpty = !Array.isArray(items) || items.length === 0;
-        if (isLocalEmpty || cloudUpdated > localUpdated){
-          items = cloud.items;
-          save(); // lokal cachen + (debounced) wieder hoch
+        if (!Array.isArray(items) || items.length===0 || cloudUpdated > localUpdated){
+          items = cloud.items; save(); // (debounced) wieder hoch
         } else {
           try { await window.firebaseCloud.cloudSave(items, localMeta); } catch {}
         }
         render();
-      } catch (e){
+      } catch(e){
         console.warn("Cloud hydrate failed:", e);
         render();
       }
     }
+    if (window.firebaseCloud) window.firebaseCloud.autoInitialLoad = initialCloudHydrate;
 
-    if (window.firebaseCloud) {
-      window.firebaseCloud.autoInitialLoad = initialCloudHydrate;
-    }
-
-    // initial
+    // Start
     render();
   })();
   </script>
@@ -581,8 +556,8 @@
       const els = { themeToggle: document.getElementById('themeToggle'), themeLabel: document.getElementById('themeLabel') };
       function applyTheme(t){
         document.documentElement.setAttribute('data-theme', t);
-        if (els.themeLabel) els.themeLabel.textContent = t === 'light' ? 'Light' : 'Dark';
-        if (els.themeToggle) els.themeToggle.firstChild.nodeValue = t === 'light' ? '☀️' : '🌙';
+        if (els.themeLabel) els.themeLabel.textContent = t==='light' ? 'Light' : 'Dark';
+        if (els.themeToggle) els.themeToggle.firstChild.nodeValue = t==='light' ? '☀️' : '🌙';
         localStorage.setItem('theme', t);
       }
       const saved = localStorage.getItem('theme') || 'dark';
