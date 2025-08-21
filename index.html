@@ -81,7 +81,7 @@
     <div class="row right">
       <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
       <div class="actions">
-        <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firestore lädt…</span>
+        <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firebase lädt…</span>
         <button id="btn-export-json">Export JSON</button>
         <button id="btn-export-csv">Export CSV</button>
         <button id="btn-import">Import JSON</button>
@@ -199,32 +199,6 @@
     </dialog>
   </div>
 
-  
-  <!-- Firebase (ES Modules) -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getFirestore, collection, collectionGroup, doc, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
-      authDomain: "platten-c1817.firebaseapp.com",
-      projectId: "platten-c1817",
-      storageBucket: "platten-c1817.firebasestorage.app",
-      messagingSenderId: "376624319679",
-      appId: "1:376624319679:web:28e871bf481b27342e4a0a"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const s = document.getElementById("firebase-status");
-    if (s) s.textContent = "✅ Firestore verbunden (ohne Auth)";
-    window.firebaseApp = app;
-    window.firebaseDB = db;
-    window.firebaseFns = { collection, collectionGroup, doc, getDocs, setDoc, deleteDoc };
-    document.dispatchEvent(new CustomEvent('firebase-ready'));
-  </script>
-
-
   <!-- Deine App-Logik (unverändert) -->
   <script>
   (function(){
@@ -302,13 +276,14 @@
 
     
     // --- Storage (öffentliche Firestore-Collection, keine Auth) ---
-    const F = window.firebaseFns || {};
+    function getFB(){ return { db: window.firebaseDB, fns: window.firebaseFns || {} }; }
     async function fsLoadAll(){
       const status = document.getElementById('firebase-status');
       try{
-        if (!window.firebaseDB || !F.collection || !F.getDocs) return null;
-        const colRef = F.collection(window.firebaseDB, 'publicRecords');
-        const snap = await F.getDocs(colRef);
+        const { db, fns } = getFB();
+        if (!db || !fns.collection || !fns.getDocs) return null;
+        const colRef = fns.collection(db, 'publicRecords');
+        const snap = await fns.getDocs(colRef);
         const arr = [];
         snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
         return arr;
@@ -320,9 +295,10 @@
     }
     async function fsUpsert(item){
       try{
-        if (!window.firebaseDB || !F.doc || !F.setDoc) return false;
-        const ref = F.doc(window.firebaseDB, 'publicRecords', item.id);
-        await F.setDoc(ref, item, { merge: true });
+        const { db, fns } = getFB();
+        if (!db || !fns.doc || !fns.setDoc) return false;
+        const ref = fns.doc(db, 'publicRecords', item.id);
+        await fns.setDoc(ref, item, { merge: true });
         return true;
       } catch(e){
         console.warn('Firestore upsert failed', e);
@@ -331,9 +307,10 @@
     }
     async function fsDelete(id){
       try{
-        if (!window.firebaseDB || !F.doc || !F.deleteDoc) return false;
-        const ref = F.doc(window.firebaseDB, 'publicRecords', id);
-        await F.deleteDoc(ref);
+        const { db, fns } = getFB();
+        if (!db || !fns.doc || !fns.deleteDoc) return false;
+        const ref = fns.doc(db, 'publicRecords', id);
+        await fns.deleteDoc(ref);
         return true;
       } catch(e){
         console.warn('Firestore delete failed', e);
@@ -462,7 +439,7 @@
 
     el('btn-reset').addEventListener('click', ()=>{ el('search').value=''; el('formatFilter').value=''; el('condFilter').value=''; el('sortBy').value='createdAt-desc'; render(); });
     ['search','formatFilter','condFilter','sortBy'].forEach(id=> el(id).addEventListener('input', render));
-    el('btn-cloud').addEventListener('click', async ()=>{ const cloud = await fsLoadAll(); if (Array.isArray(cloud)) { items = mergeByUpdatedAt(loadLocal(), cloud); saveLocal(); render(); } });
+    el('btn-cloud').addEventListener('click', async ()=>{ const c = await fsLoadAll(); if (Array.isArray(c)) { items = mergeByUpdatedAt(loadLocal(), c); saveLocal(); render(); } });
 
     el('btn-lookup').addEventListener('click', ()=> autofillFromBarcode());
     el('barcode').addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ e.preventDefault(); autofillFromBarcode(); } });
@@ -534,5 +511,27 @@
       if (els.themeToggle) els.themeToggle.addEventListener('click', ()=> applyTheme(document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light'));
     })();
   </script>
+
+  <!-- Firebase (ES Modules) at the end, so UI is ready even if CDN stottert -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
+      authDomain: "platten-c1817.firebaseapp.com",
+      projectId: "platten-c1817",
+      storageBucket: "platten-c1817.firebasestorage.app",
+      messagingSenderId: "376624319679",
+      appId: "1:376624319679:web:28e871bf481b27342e4a0a"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    window.firebaseDB = db;
+    window.firebaseFns = { collection, doc, getDocs, setDoc, deleteDoc };
+    const s = document.getElementById('firebase-status'); if (s) s.textContent = '✅ Firestore verbunden (ohne Auth)';
+    document.dispatchEvent(new CustomEvent('firebase-ready'));
+  </script>
+
 </body>
 </html>
