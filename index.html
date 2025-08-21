@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🎵 Schallplatten-Tracker (HTML) – mit Barcode</title>
-<meta name="description" content="Einfacher Vinyl-Tracker, läuft komplett im Browser.">
+<title>🎵 Schallplatten-Tracker (HTML) – mit Barcode & Firebase</title>
+<meta name="description" content="Einfacher Vinyl-Tracker, läuft im Browser und speichert automatisch in Firestore.">
 <link rel="icon" href="data:,">
 <style>
   :root {
@@ -73,23 +73,23 @@
 <body>
   <div class="container">
     <header>
-  <div class="head">
-    <div>
-      <h1>SCHALLPLATTEN-TRACKER</h1>
-      <div class="sub">mit Barcode-Autofill</div>
-    </div>
-    <div class="row right">
-      <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
-      <div class="actions">
-        <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firebase lädt…</span>
-        <button id="btn-export-json">Export JSON</button>
-        <button id="btn-export-csv">Export CSV</button>
-        <button id="btn-import">Import JSON</button>
-        <input id="file-import" type="file" accept="application/json" class="hidden" />
+      <div class="head">
+        <div>
+          <h1>SCHALLPLATTEN-TRACKER</h1>
+          <div class="sub">mit Barcode-Autofill + Auto-Cloud-Sync (Firestore)</div>
+        </div>
+        <div class="row right">
+          <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
+          <div class="actions">
+            <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firebase lädt…</span>
+            <button id="btn-export-json">Export JSON</button>
+            <button id="btn-export-csv">Export CSV</button>
+            <button id="btn-import">Import JSON</button>
+            <input id="file-import" type="file" accept="application/json" class="hidden" />
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-</header>
+    </header>
 
     <section class="stats">
       <div class="stat"><div class="muted">Gesamtanzahl</div><div class="v" id="stat-count">0</div></div>
@@ -202,6 +202,10 @@
   <!-- Firebase (ES Modules) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+    // --- Deine Config (öffentlich, ok) ---
     const firebaseConfig = {
       apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
       authDomain: "platten-c1817.firebaseapp.com",
@@ -211,18 +215,64 @@
       appId: "1:376624319679:web:28e871bf481b27342e4a0a"
     };
 
+    // Init
     const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // Statusanzeige
     const s = document.getElementById("firebase-status");
-    if (s) s.textContent = "✅ Firebase initialisiert";
-    window.firebaseApp = app;
+    const setStatus = (txt)=>{ if(s) s.textContent = txt; };
+
+    // Anonym anmelden (auch bei offenen Regeln praktisch für Meta)
+    setStatus("🔌 Firebase lädt…");
+    signInAnonymously(auth).catch(()=>{ /* offene Regeln → weiter */ });
+
+    let uid = null;
+    onAuthStateChanged(auth, (user)=>{
+      uid = user?.uid || null;
+      setStatus("✅ Firebase verbunden");
+      // Auto-Load starten (wird im App-Script gesetzt)
+      if (window.firebaseCloud?.autoInitialLoad) window.firebaseCloud.autoInitialLoad();
+    });
+
+    // --- Cloud API ---
+    // Vorläufig: globales Doc "vinyl/latest" (alle haben Zugriff bei offenen Regeln)
+    const REF = doc(db, "vinyl", "latest");
+
+    async function cloudSave(items, meta = {}){
+      const payload = {
+        items,
+        meta: {
+          ...meta,
+          savedBy: uid || "anon",
+          updatedAt: serverTimestamp()
+        }
+      };
+      await setDoc(REF, payload, { merge: false });
+    }
+
+    async function cloudLoad(){
+      const snap = await getDoc(REF);
+      if (!snap.exists()) return null;
+      return snap.data(); // { items, meta: { updatedAt: Timestamp, ... } }
+    }
+
+    // Exponieren für die App-Logik
+    window.firebaseCloud = {
+      cloudSave,
+      cloudLoad,
+      autoInitialLoad: null
+    };
   </script>
 
-  <!-- Deine App-Logik (unverändert) -->
+  <!-- App-Logik -->
   <script>
   (function(){
     const FORMATS = ["LP","EP","Single","12\"","7\"","Tape","CD","Digital"];
     const CONDITIONS = ["Mint (M)","Near Mint (NM)","Very Good+ (VG+)","Very Good (VG)","Good (G)","Poor (P)"];
     const STORAGE_KEY = "vinyl-tracker.html.v1";
+    const STORAGE_META_KEY = "vinyl-tracker.html.v1.meta";
 
     // --- State ---
     let items = load();
@@ -272,7 +322,7 @@
         if (i.notes) { const p=document.createElement('div'); p.style.marginTop='6px'; p.textContent=i.notes; notes.appendChild(p); }
         tr.appendChild(notes);
         const color = document.createElement('td'); color.textContent = i.color || ''; tr.appendChild(color);
-const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
+        const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
         const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
         const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten'; ebtn.addEventListener('click', ()=>openEditor(i.id)); actions.appendChild(ebtn);
         const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px'; dbtn.addEventListener('click', ()=>{ if (confirm('Wirklich löschen?')) { items = items.filter(x=>x.id!==i.id); save(); render(); stats(); } }); actions.appendChild(dbtn);
@@ -292,9 +342,27 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
 
     function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-    // --- Storage ---
-    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+    // --- Storage (lokal) ---
+    function save(){ // erweitert: Auto-Cloud-Save (debounced)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      const meta = { localUpdatedAt: new Date().toISOString() };
+      saveMeta(meta);
+
+      if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
+      _cloudSaveTimer = setTimeout(async ()=>{
+        try {
+          if (window.firebaseCloud?.cloudSave){
+            await window.firebaseCloud.cloudSave(items, meta);
+          }
+        } catch (e){
+          console.warn("Cloud save failed (offline oder Regeln):", e);
+        }
+      }, 800);
+    }
     function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
+    function saveMeta(meta){ localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta)); }
+    function loadMeta(){ try{ return JSON.parse(localStorage.getItem(STORAGE_META_KEY)||'{}'); } catch { return {}; } }
+    let _cloudSaveTimer = null;
 
     // --- Editor ---
     function openEditor(id){
@@ -436,12 +504,55 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
     el('btn-import').addEventListener('click', ()=> el('file-import').click());
     el('file-import').addEventListener('change', async (e)=>{
       const file = e.target.files?.[0]; if (!file) return;
-      try { const text = await file.text(); const parsed = JSON.parse(text); if (!Array.isArray(parsed)) throw new Error(); items = parsed; save(); render(); }
+      try { 
+        const text = await file.text(); 
+        const parsed = JSON.parse(text); 
+        if (!Array.isArray(parsed)) throw new Error(); 
+        items = parsed; 
+        save(); 
+        render(); 
+      }
       catch { alert('Konnte Datei nicht laden (erwarte JSON aus Export).'); }
       finally { e.target.value=''; }
     });
 
     function download(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }
+
+    // --- Auto-Cloud-Hydrate beim Start ---
+    async function initialCloudHydrate(){
+      try {
+        if (!window.firebaseCloud?.cloudLoad) { render(); return; }
+        const cloud = await window.firebaseCloud.cloudLoad(); // { items, meta }
+        if (!cloud || !Array.isArray(cloud.items)) { render(); return; }
+
+        const localMeta = loadMeta();
+        const cloudTS = cloud.meta?.updatedAt;
+        // Robust Timestamp → ms
+        const cloudUpdated = cloudTS?.toMillis ? cloudTS.toMillis() :
+                             (cloudTS?.seconds ? cloudTS.seconds * 1000 : Date.parse(cloudTS || 0)) || 0;
+        const localUpdated = Date.parse(localMeta?.localUpdatedAt || 0) || 0;
+
+        const isLocalEmpty = !Array.isArray(items) || items.length === 0;
+
+        if (isLocalEmpty || cloudUpdated > localUpdated){
+          items = cloud.items;
+          save();     // lokal cachen (triggert debounced Cloud-Save)
+        } else {
+          // Lokal „gewinnt“ → sicherheitshalber hochschreiben
+          try { await window.firebaseCloud.cloudSave(items, localMeta); } catch {}
+        }
+
+        render();
+      } catch (e){
+        console.warn("Cloud hydrate failed:", e);
+        render();
+      }
+    }
+
+    // Von Firebase-Init aus aufrufbar machen
+    if (window.firebaseCloud) {
+      window.firebaseCloud.autoInitialLoad = initialCloudHydrate;
+    }
 
     // initial
     render();
