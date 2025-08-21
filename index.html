@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🎵 Schallplatten-Tracker – Firestore Lite Auto-Sync</title>
-<meta name="description" content="Vinyl-Tracker mit Barcode-Autofill und automatischem Cloud-Sync via Firestore Lite.">
+<title>🎵 Schallplatten-Tracker – Bootstrap-Cloud-Sync (Firestore Lite)</title>
+<meta name="description" content="Vinyl-Tracker mit Barcode-Autofill, speichert beim Start lokale Daten sofort in Firestore.">
 <link rel="icon" href="data:,">
 <style>
   :root {
@@ -46,7 +46,6 @@
   dialog .dialog-body{padding:16px} dialog::backdrop{background:rgba(0,0,0,.55)}
   .ok{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 8px;border:1px solid var(--ring-2);border-radius:999px;background:var(--chip)}
   .ok.err{border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08);color:#fecaca}
-  .dbg{font-size:12px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -55,7 +54,7 @@
       <div class="head">
         <div>
           <h1>SCHALLPLATTEN-TRACKER</h1>
-          <div class="sub">Barcode-Autofill + Auto-Cloud-Sync (Firestore Lite)</div>
+          <div class="sub">Bootstrap: lokale Daten → Cloud; sonst Cloud → lokal</div>
         </div>
         <div class="row right">
           <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
@@ -68,14 +67,6 @@
           </div>
         </div>
       </div>
-      <!-- Mini-Debug -->
-      <details class="dbg"><summary>🛠️ Debug</summary>
-        <div id="debug-log" class="muted"></div>
-        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-          <button id="dbg-write">Cloud Test: Write</button>
-          <button id="dbg-read">Cloud Test: Read</button>
-        </div>
-      </details>
     </header>
 
     <section class="stats">
@@ -197,66 +188,36 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // UI Status helpers
+    // UI Status
     const s = document.getElementById("firebase-status");
-    const dbg = document.getElementById("debug-log");
-    const log = (m)=>{ console.log(m); if(dbg){ const p=document.createElement('div'); p.textContent=String(m); dbg.appendChild(p); } };
     const ok  = (msg)=>{ if(s){ s.classList.remove('err'); s.textContent = `✅ ${msg}`; } };
     const err = (msg)=>{ if(s){ s.classList.add('err'); s.textContent = `❌ ${msg}`; } };
-
     ok("Firebase bereit (Lite)");
 
-    // Cloud API – globales Doc
+    // Firestore-Referenz (globales Doc, offene Regeln)
     const REF = doc(db, "vinyl", "latest");
 
     async function cloudSave(items, meta = {}){
-      log("[cloudSave] → vinyl/latest, items="+items.length);
       const payload = { items, meta: { ...meta, updatedAt: serverTimestamp() } };
-      try{
-        await setDoc(REF, payload, { merge:false });
-        ok("Cloud OK");
-        log("[cloudSave] OK");
-      }catch(e){
-        const msg = e?.code || e?.message || e;
-        err("Cloud-Fehler (save): "+msg);
-        console.error(e);
-        throw e;
-      }
+      await setDoc(REF, payload, { merge:false });
+      ok("Cloud gespeichert");
     }
 
     async function cloudLoad(){
-      log("[cloudLoad] ← vinyl/latest");
-      try{
-        const snap = await getDoc(REF);
-        if(!snap.exists()){ ok("Cloud leer"); log("[cloudLoad] leer"); return null; }
-        const data = snap.data();
-        ok("Cloud OK");
-        log("[cloudLoad] OK, items="+(Array.isArray(data.items)?data.items.length:0));
-        return data;
-      }catch(e){
-        const msg = e?.code || e?.message || e;
-        err("Cloud-Fehler (load): "+msg);
-        console.error(e);
-        throw e;
-      }
+      const snap = await getDoc(REF);
+      if (!snap.exists()){ ok("Cloud leer"); return null; }
+      const data = snap.data();
+      ok("Cloud geladen");
+      return data;
     }
 
-    // Exportieren
-    window.firebaseCloud = { cloudSave, cloudLoad, autoInitialLoad:null };
+    // Exponieren
+    window.firebaseCloud = { cloudSave, cloudLoad };
 
-    // Debug-Buttons
-    document.getElementById('dbg-write').addEventListener('click', async (e)=>{
-      e.preventDefault();
-      try{ await cloudSave([{id:"_test", artist:"TEST", title:"WRITE", createdAt:new Date().toISOString()}], {localUpdatedAt:new Date().toISOString()}); }
-      catch{}
-    });
-    document.getElementById('dbg-read').addEventListener('click', async (e)=>{
-      e.preventDefault();
-      try{ await cloudLoad(); } catch{}
-    });
-
-    // Fallback: initiales Cloud-Laden auch ohne Auth-Event
-    setTimeout(()=>{ if(window.firebaseCloud?.autoInitialLoad) window.firebaseCloud.autoInitialLoad(); }, 300);
+    // Wenn die App die Bootstrap-Funktion schon gesetzt hat, sofort ausführen
+    if (window.__bootstrapSync) window.__bootstrapSync();
+    // Fallback (falls Reihenfolge anders ist)
+    setTimeout(()=>{ if (window.__bootstrapSync) window.__bootstrapSync(); }, 300);
   </script>
 
   <!-- App-Logik -->
@@ -274,12 +235,8 @@
     const tbody = el('tbody');
     const dlg = el('dlg');
 
-    const uuid = ()=> (crypto?.randomUUID ? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2)+Date.now()));
-
-    function fillSelect(id, opts){
-      const s = el(id); s.innerHTML = '';
-      opts.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; s.appendChild(o); });
-    }
+    // Selects füllen
+    function fillSelect(id, opts){ const s = el(id); s.innerHTML = ''; opts.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; s.appendChild(o); }); }
     fillSelect('f-format', FORMATS); fillSelect('f-condition', CONDITIONS);
     (function(){ const f = el('formatFilter'); FORMATS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
     (function(){ const f = el('condFilter'); CONDITIONS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
@@ -287,11 +244,10 @@
     function render(){
       const q = el('search').value.trim().toLowerCase();
       const ff = el('formatFilter').value; const cf = el('condFilter').value; const sb = el('sortBy').value;
-      let list = items.filter(i=> (i.artist+' '+i.title+' '+(i.label||'')+' '+(i.tags||[]).join(' ')).toLowerCase().includes(q));
+      let list = items.filter(i=> (i.artist + ' ' + i.title + ' ' + (i.label||'') + ' ' + (i.tags||[]).join(' ')).toLowerCase().includes(q));
       if (ff) list = list.filter(i => i.format === ff);
       if (cf) list = list.filter(i => i.condition === cf);
       const [field, dir] = sb.split('-');
-
       list.sort((a,b)=>{
         const va = (a[field] ?? '').toString(); const vb = (b[field] ?? '').toString();
         if (field === 'price' || field === 'rating') { const na=Number(va||0), nb=Number(vb||0); return dir==='asc'? na-nb : nb-na; }
@@ -301,46 +257,40 @@
       tbody.innerHTML = '';
       for (const i of list){
         const tr = document.createElement('tr');
-
+        // Cover
         const coverTd = document.createElement('td');
-        const img = document.createElement('img'); img.className='cover'; img.alt='Cover'; img.src = i.coverUrl || '';
-        if (!i.coverUrl) { img.style.background = '#222'; }
+        const img = document.createElement('img'); img.className='cover'; img.alt='Cover'; img.src = i.coverUrl || ''; if (!i.coverUrl) img.style.background = '#222';
         coverTd.appendChild(img); tr.appendChild(coverTd);
-
+        // Meta
         const meta = document.createElement('td');
         const title = document.createElement('div'); title.innerHTML = `<strong>${esc(i.artist)}</strong> — ${esc(i.title)}`; meta.appendChild(title);
-        const line = document.createElement('div'); line.className='muted';
-        line.textContent = [i.label, i.year, i.format, i.condition].filter(Boolean).join(' • ');
-        meta.appendChild(line);
+        const line = document.createElement('div'); line.className='muted'; line.textContent = [i.label, i.year, i.format, i.condition].filter(Boolean).join(' • '); meta.appendChild(line);
         tr.appendChild(meta);
-
-        const notes = document.createElement('td');
-        const tags = document.createElement('div'); tags.className='badges';
-        (i.tags||[]).forEach(t=>{ const b=document.createElement('span'); b.className='badge'; b.textContent = '#'+t; tags.appendChild(b); });
-        notes.appendChild(tags);
+        // Notes/Tags
+        const notes = document.createElement('td'); const tags = document.createElement('div'); tags.className='badges';
+        (i.tags||[]).forEach(t=>{ const b=document.createElement('span'); b.className='badge'; b.textContent = '#'+t; tags.appendChild(b); }); notes.appendChild(tags);
         if (i.notes) { const p=document.createElement('div'); p.style.marginTop='6px'; p.textContent=i.notes; notes.appendChild(p); }
         tr.appendChild(notes);
-
+        // Farbe / Preis
         const color = document.createElement('td'); color.textContent = i.color || ''; tr.appendChild(color);
         const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
-
+        // Aktionen
         const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
         const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten';
         ebtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openEditor(i.id); });
         actions.appendChild(ebtn);
-
         const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px';
         dbtn.addEventListener('click', (ev)=>{
           ev.preventDefault(); ev.stopPropagation();
-          try {
-            if (!window.confirm('Wirklich löschen?')) return;
+          try{
+            if (!confirm('Wirklich löschen?')) return;
             items = items.filter(x=>x.id!==i.id);
             save();
-            render(); // stats() kommt aus render()
-          } catch(e){ console.warn("Delete failed:", e); }
+            // nächster Frame, um Layout-Jank zu vermeiden
+            requestAnimationFrame(render);
+          }catch(e){ console.warn("Delete failed:", e); }
         });
         actions.appendChild(dbtn);
-
         tr.appendChild(actions);
         tbody.appendChild(tr);
       }
@@ -355,12 +305,11 @@
 
     function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-    // Storage + Auto-Cloud-Save
+    // Lokaler Storage + Auto-Cloud-Save
     function save(){
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       const meta = { localUpdatedAt: new Date().toISOString() };
       saveMeta(meta);
-
       if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
       _cloudSaveTimer = setTimeout(async ()=>{
         try {
@@ -379,14 +328,11 @@
 
     // Editor
     function openEditor(id){
-      editingId = id || uuid();
-      const data = items.find(x=>x.id===id) || {
-        id: editingId, artist:'', title:'', format:'LP', condition:'Very Good+ (VG+)', tags:[], createdAt: new Date().toISOString()
-      };
+      editingId = id || (crypto.randomUUID ? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2)+Date.now()));
+      const data = items.find(x=>x.id===id) || { id: editingId, artist:'', title:'', format:'LP', condition:'Very Good+ (VG+)', tags:[], createdAt: new Date().toISOString() };
       el('dlg-title').textContent = id ? 'Bearbeiten' : 'Neue Platte';
-      el('f-artist').value = data.artist||''; el('f-title').value = data.title||'';
-      el('f-year').value = data.year||''; el('f-label').value = data.label||'';
-      el('f-catalog').value = data.catalog||''; el('f-format').value = data.format||'LP';
+      el('f-artist').value = data.artist||''; el('f-title').value = data.title||''; el('f-year').value = data.year||'';
+      el('f-label').value = data.label||''; el('f-catalog').value = data.catalog||''; el('f-format').value = data.format||'LP';
       el('f-color').value = data.color||''; el('f-condition').value = data.condition||'';
       el('f-rating').value = data.rating ?? ''; el('f-price').value = data.price ?? '';
       el('f-date').value = data.purchaseDate ? data.purchaseDate.slice(0,10) : '';
@@ -398,7 +344,7 @@
 
     function saveEditor(){
       const rec = {
-        id: editingId || uuid(),
+        id: editingId || (crypto.randomUUID ? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2)+Date.now())),
         artist: el('f-artist').value.trim(),
         title: el('f-title').value.trim(),
         year: el('f-year').value.trim(),
@@ -421,11 +367,10 @@
       save(); render(); dlg.close();
     }
 
-    // Barcode Lookup (wie gehabt)
+    // Barcode Lookup (unverändert)
     async function lookupByBarcode(code){
       const status = el('lookup-status'); status.textContent = 'Suche…';
-      const clean = (code||'').replace(/\D/g,'');
-      if (!clean) { status.textContent = 'Kein gültiger Code.'; return null; }
+      const clean = (code||'').replace(/\D/g,''); if (!clean) { status.textContent = 'Kein gültiger Code.'; return null; }
       try {
         const mbUrl = `https://musicbrainz.org/ws/2/release/?query=barcode:${clean}&fmt=json`;
         const mb = await fetch(mbUrl, { headers: { 'User-Agent': 'VinylTrackerHTML/1.0 (barcode lookup)', 'Accept': 'application/json' } });
@@ -436,14 +381,12 @@
           const label = (hit["label-info"]||[])[0]?.label?.name || ''; const catalog = (hit["label-info"]||[])[0]?.catalog_number || '';
           const mbid = hit.id; let cover = '';
           try {
-            const caa = await fetch(`https://coverartarchive.org/release/${mbid}`);
-            if (caa.ok) { const ca = await caa.json(); const front = (ca.images||[]).find(img=>img.front) || ca.images?.[0]; cover = front?.thumbnails?.small || front?.image || ''; }
+            const caa = await fetch(`https://coverartarchive.org/release/${mbid}`); if (caa.ok) { const ca = await caa.json(); const front = (ca.images||[]).find(img=>img.front) || ca.images?.[0]; cover = front?.thumbnails?.small || front?.image || ''; }
           } catch {}
           status.textContent = 'Treffer aus MusicBrainz';
           return { artist, title, year, label, catalog, coverUrl: cover };
         }
       } catch (e){ console.warn(e); }
-
       const token = el('discogsToken').value.trim();
       if (token){
         try {
@@ -515,38 +458,46 @@
       setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
     }
 
-    // Initial Cloud-Hydrate
-    async function initialCloudHydrate(){
-      try{
-        if (!window.firebaseCloud?.cloudLoad) { render(); return; }
-        const cloud = await window.firebaseCloud.cloudLoad(); // {items, meta} | null
-        if (!cloud || !Array.isArray(cloud.items)){
-          // Cloud leer → lokale Daten (falls vorhanden) hochschieben
-          if (Array.isArray(items) && items.length > 0){
-            try { await window.firebaseCloud.cloudSave(items, loadMeta()); } catch {}
+    // --- WICHTIG: Bootstrap-Sync ---
+    // Wenn lokal Daten vorhanden sind → SOFORT in Cloud speichern (overwrite).
+    // Wenn lokal leer → aus Cloud laden und lokal speichern.
+    window.__bootstrapSync = async function(){
+      try {
+        // Warte, bis die Cloud-Funktionen da sind
+        if (!window.firebaseCloud?.cloudSave || !window.firebaseCloud?.cloudLoad){
+          setTimeout(window.__bootstrapSync, 200);
+          return;
+        }
+        const local = load();
+        if (Array.isArray(local) && local.length > 0){
+          // Direkt hochladen (ohne Vergleiche)
+          try {
+            await window.firebaseCloud.cloudSave(local, { localUpdatedAt: new Date().toISOString(), source: "bootstrap-push" });
+          } catch(e){
+            console.warn("Bootstrap push failed:", e);
           }
-          render(); return;
-        }
-        // Cloud vs lokal nach Zeit
-        const localMeta = loadMeta();
-        const cts = cloud.meta?.updatedAt;
-        const cloudUpdated = cts?.toMillis ? cts.toMillis() : (cts?.seconds ? cts.seconds*1000 : Date.parse(cts||0)) || 0;
-        const localUpdated = Date.parse(localMeta?.localUpdatedAt || 0) || 0;
-
-        if (!Array.isArray(items) || items.length===0 || cloudUpdated > localUpdated){
-          items = cloud.items; save(); // (debounced) wieder hoch
         } else {
-          try { await window.firebaseCloud.cloudSave(items, localMeta); } catch {}
+          // Lokal leer → aus Cloud ziehen
+          try {
+            const cloud = await window.firebaseCloud.cloudLoad();
+            if (cloud && Array.isArray(cloud.items)){
+              items = cloud.items;
+              save(); // lokal cachen + (debounced) wieder hoch
+              render();
+            }
+          } catch(e){
+            console.warn("Bootstrap load failed:", e);
+          }
         }
-        render();
-      } catch(e){
-        console.warn("Cloud hydrate failed:", e);
+      } catch (e){
+        console.warn("Bootstrap error:", e);
+      } finally {
+        // In jedem Fall UI zeigen
         render();
       }
-    }
-    if (window.firebaseCloud) window.firebaseCloud.autoInitialLoad = initialCloudHydrate;
+    };
 
-    // Start
+    // Start UI
     render();
   })();
   </script>
