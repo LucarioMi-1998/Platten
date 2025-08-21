@@ -6,7 +6,13 @@
   <title>Vinyl Tracker – Firestore (Edit-Funktion)</title>
   <style>
     :root{--bg:#0b0c10;--panel:#0f1117;--panel2:#12151d;--border:#1f2430;--text:#e5e7eb;--muted:#9da3ae;--brand:#6366f1;--ok:#22c55e;--err:#ef4444}
-    *{box-sizing:border-box} body{margin:0;background:radial-gradient(1000px 800px at 75% -20%, #1a2030 0%, var(--bg) 40%) no-repeat, var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:radial-gradient(1000px 800px at 75% -20%, #1a2030 0%, var(--bg) 40%) no-repeat, var(--bg);
+      color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial
+    }
     .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 56px}
     h1{margin:0 0 6px;font-size:clamp(22px,3.2vw,34px)}
     .muted{color:var(--muted)}
@@ -25,7 +31,7 @@
     input,select,textarea{width:100%;background:#0b0e14;color:var(--text);border:1px solid #23283a;border-radius:10px;padding:.7rem .85rem;outline:none}
     input::placeholder{color:#6b7280}
     .list{display:grid;gap:8px}
-    .item{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0e1220;border:1px solid #23283a;border-radius:12px;padding:10px 12px}
+    .item{display:flex;align-items:center;gap:12px;background:#0e1220;border:1px solid #23283a;border-radius:12px;padding:10px 12px}
     .item .meta{font-size:.95rem}
     .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .toast{margin-top:10px;padding:10px;border-radius:10px;border:1px solid #374151}
@@ -35,6 +41,22 @@
     dialog{border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,var(--panel) 0%, var(--panel2) 100%);color:var(--text);width:min(900px,95vw);}
     dialog::backdrop{background:rgba(0,0,0,.6)}
     .modal-body{padding:12px 14px}
+    /* KPI-Pillen */
+    .kpi{display:flex;gap:14px;align-items:center}
+    .kpi .pill{font-size:.9rem;color:var(--muted);border:1px solid #23283a;border-radius:999px;padding:.35rem .6rem}
+    /* Suche */
+    .search{display:flex;gap:8px;align-items:center}
+    .search input{max-width:360px}
+    /* Farb-Würfel (klein, weiße Kontur) */
+    .color-cube{
+      display:inline-block;
+      width:12px;height:12px;
+      border-radius:3px;
+      border:0.25pt solid #fff;
+      margin-left:6px;
+      vertical-align:middle;
+      box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)
+    }
   </style>
 </head>
 <body>
@@ -53,9 +75,13 @@
 
     <div style="height:14px"></div>
 
+    <!-- KPIs (Anzahl + Gesamtwert) -->
     <div class="card" id="count-card">
       <div class="toolbar" style="justify-content:flex-end">
-        <div class="muted"><span id="count">0</span> Einträge</div>
+        <div class="kpi">
+          <span class="pill"><span id="count">0</span> Einträge</span>
+          <span class="pill">Gesamtwert: <span id="total">€ 0,00</span></span>
+        </div>
       </div>
     </div>
 
@@ -87,7 +113,14 @@
 
     <!-- Liste -->
     <div class="card">
-      <h2 style="margin:4px 0">Deine Sammlung</h2>
+      <div class="toolbar" style="justify-content:space-between">
+        <h2 style="margin:4px 0">Deine Sammlung</h2>
+        <!-- Suchleiste -->
+        <div class="search">
+          <input id="search" placeholder="Suche (Artist, Titel, Label, Tags…)" />
+          <button id="clear-search" class="btn secondary" type="button" title="Suche zurücksetzen">Zurücksetzen</button>
+        </div>
+      </div>
       <div id="list" class="list"></div>
       <p id="empty" class="muted" style="display:none">Noch keine Einträge.</p>
       <div id="toast" class="toast" style="display:none"></div>
@@ -110,7 +143,7 @@
           <div><label>Format</label><input name="format" placeholder="LP, EP, 12'', …" /></div>
         </div>
         <div class="row-3">
-          <div><label>Color</label><input name="color" /></div>
+          <div><label>Color</label><input name="color" placeholder="z. B. grün, lila; orange" /></div>
           <div><label>Condition</label><input name="condition" placeholder="VG+, NM…" /></div>
           <div><label>Rating</label><input name="rating" type="number" step="1" min="0" max="10" /></div>
         </div>
@@ -138,7 +171,7 @@
     // Firebase
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
     import {
-      initializeFirestore, getFirestore, collection, addDoc, updateDoc, onSnapshot, query, orderBy,
+      initializeFirestore, collection, addDoc, updateDoc, onSnapshot, query, orderBy,
       serverTimestamp, deleteDoc, doc
     } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
@@ -152,13 +185,14 @@
     });
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
-    // UI
+    // UI refs
     const statusText = document.getElementById('status-text');
     const statusDot = document.getElementById('status-dot');
     const toast = document.getElementById('toast');
     const listEl = document.getElementById('list');
     const emptyEl = document.getElementById('empty');
     const countEl = document.getElementById('count');
+    const totalEl = document.getElementById('total');
     const dlg = document.getElementById('dlg');
     const form = document.getElementById('form');
     const btnSave = document.getElementById('save');
@@ -168,9 +202,15 @@
     const bkDiscogs = document.getElementById('bk-discogs');
     const bkSearch = document.getElementById('bk-search');
     const bkResult = document.getElementById('bk-result');
+    const searchInput = document.getElementById('search');
+    const clearSearchBtn = document.getElementById('clear-search');
 
     const col = collection(db, "vinyls");
     const q = query(col, orderBy("createdAt", "desc"));
+
+    // State
+    let allDocs = [];
+    let filter = '';
 
     const showToast = (msg, ok=false) => {
       toast.textContent = msg;
@@ -180,6 +220,55 @@
       console.log(msg);
     };
 
+    const fmtEUR = (n)=> new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n||0);
+
+    // ---- Color helpers ----
+    // map common DE/EN color names -> hex
+    const COLOR_MAP = {
+      'grün':'#22c55e','gruen':'#22c55e','green':'#22c55e',
+      'schwarz':'#000000','black':'#000000',
+      'weiß':'#ffffff','weiss':'#ffffff','white':'#ffffff',
+      'rot':'#ef4444','red':'#ef4444',
+      'blau':'#3b82f6','blue':'#3b82f6',
+      'gelb':'#eab308','yellow':'#eab308',
+      'orange':'#f97316',
+      'violett':'#8b5cf6','lila':'#8b5cf6','purple':'#8b5cf6',
+      'pink':'#ec4899','magenta':'#ec4899',
+      'cyan':'#22d3ee',
+      'türkis':'#14b8a6','tuerkis':'#14b8a6','turquoise':'#14b8a6',
+      'grau':'#9ca3af','gray':'#9ca3af','grey':'#9ca3af',
+      'silber':'#c0c0c0','silver':'#c0c0c0',
+      'gold':'#f59e0b',
+      'transparent':'transparent'
+    };
+    const isHex = (s)=> /^#?[0-9a-f]{3,8}$/i.test(s);
+    const isRgb = (s)=> /^rgb(a)?\(/i.test(s);
+    function resolveColorToken(token){
+      if(token==null) return null;
+      const raw = String(token).trim();
+      if(!raw) return null;
+      const lower = raw.toLowerCase();
+      if (COLOR_MAP[lower]) return COLOR_MAP[lower];
+      if (isHex(raw)) return raw.startsWith('#')? raw : '#'+raw;
+      if (isRgb(raw)) return raw;
+      return null; // unknown -> skip
+    }
+    function parseColorList(value){
+      if (value==null) return [];
+      // split on comma/semicolon/pipe/ampersand/plus or multi-spaces
+      const parts = String(value).split(/[,;|&+]+|\s{2,}/).map(s=>s.trim()).filter(Boolean);
+      // also split single spaces if pattern like "lila orange"
+      if (parts.length===1) {
+        const maybe = String(value).split(/[,;|]+/).map(s=>s.trim()).filter(Boolean);
+        // if still one, split by single spaces
+        if (maybe.length===1) {
+          return String(value).split(/[\s/]+/).map(s=>s.trim()).filter(Boolean);
+        }
+        return maybe;
+      }
+      return parts;
+    }
+
     function setForm(data={}, id=null){
       form._id.value = id || "";
       const set = (n,v)=> { const el=form.querySelector('[name="'+n+'"]'); if (el) el.value = v ?? ''; };
@@ -188,6 +277,7 @@
       set('color', data.color); set('condition', data.condition); set('rating', data.rating);
       set('tags', data.tags); set('purchaseDate', data.purchaseDate);
       set('price', data.price); set('coverUrl', data.coverUrl); set('barcode', data.barcode);
+      set('notes', data.notes);
     }
 
     function getPayload(){
@@ -203,38 +293,81 @@
       };
     }
 
-    const renderList = (docs) => {
+    function applyFilter(docs){
+      const term = filter.trim().toLowerCase();
+      if (!term) return docs;
+      return docs.filter(d=>{
+        const x=d.data();
+        const fields=[x.artist,x.title,x.label,x.format,x.tags,x.year,x.catalog,x.condition,x.color,x.notes,x.barcode];
+        return fields.some(v=> (v? String(v).toLowerCase(): '').includes(term));
+      });
+    }
+
+    function updateKpis(){
+      countEl.textContent = String(allDocs.length);
+      const sum = allDocs.reduce((acc,d)=>{ const x=d.data().price; return acc + (typeof x === 'number' ? x : 0); },0);
+      totalEl.textContent = fmtEUR(sum);
+    }
+
+    const renderList = (docsToRender) => {
       listEl.innerHTML = "";
-      countEl.textContent = String(docs.length);
+      const docs = applyFilter(docsToRender);
       if (!docs.length) { emptyEl.style.display='block'; return; }
       emptyEl.style.display='none';
       for (const d of docs) {
         const x = d.data();
         const el = document.createElement('div');
         el.className = 'item';
-        const left = document.createElement('div');
-        left.innerHTML = '<div class="meta"><strong>'+(x.artist||"—")+' — '+(x.title||"—")+'</strong></div>' +
-                         '<div class="muted">'+(x.year||"")+(x.label?' · '+x.label:'')+(x.format?' · '+x.format:'')+'</div>';
+
+        // LEFT: Cover
+        if (x.coverUrl) {
+          const img=document.createElement('img'); img.src=x.coverUrl; img.alt='Cover'; img.className='cover'; img.onerror=()=>img.style.display='none';
+          el.appendChild(img);
+        }
+
+        // MIDDLE: Text
+        const middle = document.createElement('div');
+        middle.style.flex='1';
+
+        // Build color cubes (AFTER price, in the second line)
+        let cubesHtml = '';
+        if (x.color) {
+          const tokens = parseColorList(x.color);
+          const resolved = tokens.map(t => ({ orig:t, val: resolveColorToken(t) })).filter(o=>o.val);
+          if (resolved.length) {
+            cubesHtml = resolved.map(o => '<span class="color-cube" style="background:'+o.val+'" title="'+o.orig+'"></span>').join('');
+          }
+        }
+
+        const pricePart = (typeof x.price==='number' ? ' · '+fmtEUR(x.price) : '');
+
+        middle.innerHTML =
+          '<div class="meta"><strong>'+(x.artist||"—")+' — '+(x.title||"—")+'</strong></div>' +
+          '<div class="muted">'+(x.year||"")+(x.label?' · '+x.label:'')+(x.format?' · '+x.format:'')+pricePart + cubesHtml + '</div>';
+        el.appendChild(middle);
+
+        // RIGHT: Actions
         const right = document.createElement('div');
         right.className='toolbar';
         const edit=document.createElement('button'); edit.className='btn secondary'; edit.textContent='Bearbeiten';
         edit.onclick = ()=>{ setForm(x, d.id); dlg.showModal(); };
         right.appendChild(edit);
-        if (x.coverUrl) {
-          const img=document.createElement('img'); img.src=x.coverUrl; img.alt='Cover'; img.className='cover'; img.onerror=()=>img.style.display='none';
-          right.appendChild(img);
-        }
         const del=document.createElement('button'); del.className='btn danger'; del.textContent='Löschen';
         del.onclick = async ()=>{ del.disabled=true; try{ await deleteDoc(doc(db,'vinyls', d.id)); showToast('Eintrag gelöscht ✓', true); } catch(e){ showToast('Löschen fehlgeschlagen: '+e.message); del.disabled=false; } };
         right.appendChild(del);
-        el.append(left,right);
+        el.appendChild(right);
+
         listEl.appendChild(el);
-        // Double-click on row also opens edit
         el.ondblclick = ()=> { setForm(x, d.id); dlg.showModal(); };
       }
     };
 
-    onSnapshot(q, (snap)=>{ statusText.textContent='Verbunden'; statusDot.classList.remove('error'); renderList(snap.docs); }, (err)=>{ statusText.textContent='Fehler: '+err.code; statusDot.classList.add('error'); showToast(err.message); });
+    onSnapshot(q, (snap)=>{
+      statusText.textContent='Verbunden'; statusDot.classList.remove('error');
+      allDocs = snap.docs;
+      updateKpis();
+      renderList(allDocs);
+    }, (err)=>{ statusText.textContent='Fehler: '+err.code; statusDot.classList.add('error'); showToast(err.message); });
 
     // Save (create or update)
     form.onsubmit = async (e)=>{
@@ -254,9 +387,17 @@
     btnClose.onclick = ()=> dlg.close();
 
     // Test write
-    document.getElementById('test-write').onclick = async function(){
-      this.disabled=true; try{ await addDoc(col,{artist:'_test',title:'_ping',createdAt:serverTimestamp()}); showToast('Testeintrag erstellt ✓', true); } catch(e){ showToast('Test fehlgeschlagen: '+e.message); } finally{ this.disabled=false; }
+    btnTest.onclick = async function(){
+      this.disabled=true;
+      try{ await addDoc(col,{artist:'_test',title:'_ping',createdAt:serverTimestamp()}); showToast('Testeintrag erstellt ✓', true); }
+      catch(e){ showToast('Test fehlgeschlagen: '+e.message); }
+      finally{ this.disabled=false; }
     };
+
+    // Suche (mit Debounce)
+    let t; const debounce=(fn,ms)=>{ clearTimeout(t); t=setTimeout(fn,ms); };
+    searchInput.addEventListener('input', ()=> debounce(()=>{ filter = searchInput.value; renderList(allDocs); }, 150));
+    clearSearchBtn.addEventListener('click', ()=>{ filter=''; searchInput.value=''; renderList(allDocs); });
 
     // Barcode lookup
     async function fetchJSON(url, headers={}){ const r=await fetch(url,{headers}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
@@ -276,14 +417,42 @@
         const m0 = rel.media && rel.media[0];
         out.format = (m0 && m0.format) || null;
       }
-      try{ if(rel && rel.id){ const caa=await fetchJSON('https://coverartarchive.org/release/'+rel.id); const img=(caa.images||[]).find(i=>i.front)||(caa.images||[])[0]; if(img) out.coverUrl = img.image || (img.thumbnails && (img.thumbnails.large || img.thumbnails.small)); } }catch{}
-      if(token){ try{ const d=await fetchJSON('https://api.discogs.com/database/search?type=release&barcode='+encodeURIComponent(barcode),{'Authorization':'Discogs token='+token,'User-Agent':'VinylTracker/1.0'}); const r=d && d.results && d.results[0]; if(r){ out.title=out.title||r.title; out.coverUrl=out.coverUrl||r.cover_image; out.label=out.label||(Array.isArray(r.label)?r.label[0]:r.label); out.format=out.format||(Array.isArray(r.format)?r.format.join(', '):r.format); out.year=out.year||r.year; } }catch(e){ console.warn('Discogs lookup failed', e); } }
+      try{
+        if(rel && rel.id){
+          const caa=await fetchJSON('https://coverartarchive.org/release/'+rel.id);
+          const img=(caa.images||[]).find(i=>i.front)||(caa.images||[])[0];
+          if(img) out.coverUrl = img.image || (img.thumbnails && (img.thumbnails.large || img.thumbnails.small));
+        }
+      }catch{}
+      if(token){
+        try{
+          const d=await fetchJSON('https://api.discogs.com/database/search?type=release&barcode='+encodeURIComponent(barcode),{'Authorization':'Discogs token='+token,'User-Agent':'VinylTracker/1.0'});
+          const r=d && d.results && d.results[0];
+          if(r){
+            out.title=out.title||r.title;
+            out.coverUrl=out.coverUrl||r.cover_image;
+            out.label=out.label||(Array.isArray(r.label)?r.label[0]:r.label);
+            out.format=out.format||(Array.isArray(r.format)?r.format.join(', '):r.format);
+            out.year=out.year||r.year;
+          }
+        }catch(e){ console.warn('Discogs lookup failed', e); }
+      }
       return out;
     }
-    document.getElementById('bk-search').onclick = async function(){
-      const code=bkBarcode.value.trim(); const token=bkDiscogs.value.trim(); if(!code){ bkResult.innerHTML='<span class="muted">Bitte Barcode eingeben.</span>'; return; }
+    bkSearch.onclick = async function(){
+      const code=bkBarcode.value.trim(); const token=bkDiscogs.value.trim();
+      if(!code){ bkResult.innerHTML='<span class="muted">Bitte Barcode eingeben.</span>'; return; }
       this.disabled=true; this.textContent='Suche…'; bkResult.innerHTML='Suche läuft…';
-      try{ const data=await lookup(code,token); const cover=data.coverUrl?'<img class="cover" src="'+data.coverUrl+'" alt="cover" onerror="this.style.display=\'none\'">':''; bkResult.innerHTML='<div class="item"><div><div class="meta"><strong>'+(data.artist||"—")+' — '+(data.title||"—")+'</strong></div><div class="muted">'+(data.year||"")+(data.label?' · '+data.label:'')+(data.format?' · '+data.format:'')+'</div></div><div class="toolbar">'+cover+'<button id="bk-apply" class="btn">Übernehmen</button></div></div>'; document.getElementById('bk-apply').onclick=(e)=>{ e.preventDefault(); fillFormFromLookup(data); }; } catch(e){ bkResult.innerHTML='<div class="toast err">Lookup fehlgeschlagen: '+e.message+'</div>'; } finally{ this.disabled=false; this.textContent='Suchen'; }
+      try{
+        const data=await lookup(code,token);
+        const cover=data.coverUrl?'<img class="cover" src="'+data.coverUrl+'" alt="cover" onerror="this.style.display=\'none\'">':'';
+        bkResult.innerHTML='<div class="item"><div class="toolbar">'+cover+'</div><div><div class="meta"><strong>'+(data.artist||"—")+' — '+(data.title||"—")+'</strong></div><div class="muted">'+(data.year||"")+(data.label?' · '+data.label:'')+(data.format?' · '+data.format:'')+'</div></div><div class="toolbar"><button id="bk-apply" class="btn">Übernehmen</button></div></div>';
+        document.getElementById('bk-apply').onclick=(e)=>{ e.preventDefault(); fillFormFromLookup(data); };
+      } catch(e){
+        bkResult.innerHTML='<div class="toast err">Lookup fehlgeschlagen: '+e.message+'</div>';
+      } finally{
+        this.disabled=false; this.textContent='Suchen';
+      }
     };
   </script>
 </body>
