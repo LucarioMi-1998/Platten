@@ -81,7 +81,7 @@
     <div class="row right">
       <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
       <div class="actions">
-        <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Firebase lädt…</span>
+        <span id="firebase-status" class="ok" title="Firebase Ladezustand">🔌 Verbindung…</span>
         <button id="btn-export-json">Export JSON</button>
         <button id="btn-export-csv">Export CSV</button>
         <button id="btn-import">Import JSON</button>
@@ -118,7 +118,7 @@
             <option value="title-asc">Titel A–Z</option>
             <option value="year-desc">Jahr ↓</option>
             <option value="price-desc">Preis ↓</option>
-            <option value="rating-desc">Bewertung ↓</option>
+            <option value="color-asc">Farbe A–Z</option>
           </select>
         </div>
         <div><button id="btn-reset">Reset</button></div>
@@ -155,7 +155,7 @@
             <th>Cover</th>
             <th>Künstler — Titel<br><span class="muted">Label • Jahr • Format • Zustand</span></th>
             <th>Tags / Notizen</th>
-            <th>Bewertung</th>
+            <th>Farbe</th>
             <th>Preis</th>
             <th></th>
           </tr>
@@ -199,9 +199,13 @@
     </dialog>
   </div>
 
+  
   <!-- Firebase (ES Modules) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
       authDomain: "platten-c1817.firebaseapp.com",
@@ -213,9 +217,32 @@
 
     const app = initializeApp(firebaseConfig);
     const s = document.getElementById("firebase-status");
-    if (s) s.textContent = "✅ Firebase initialisiert";
-    window.firebaseApp = app;
+    if (s) s.textContent = "🔌 Verbinde mit Firebase…";
+
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Anonymous sign-in (keine UI, nur UID für private Sammlung)
+    signInAnonymously(auth).catch((err) => {
+      if (s) s.textContent = "⚠️ Firebase Auth Fehler";
+      console.warn("Firebase auth error", err);
+    });
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        if (s) s.textContent = "✅ Firebase verbunden";
+        window.firebaseApp = app;
+        window.firebaseAuth = auth;
+        window.firebaseDB = db;
+        window.firebaseUID = user.uid;
+        // Signal an App-Logik, dass Firebase bereit ist
+        document.dispatchEvent(new CustomEvent('firebase-ready', { detail: { uid: user.uid }}));
+      } else {
+        if (s) s.textContent = "⚠️ Nicht angemeldet";
+      }
+    });
   </script>
+
 
   <!-- Deine App-Logik (unverändert) -->
   <script>
@@ -225,7 +252,7 @@
     const STORAGE_KEY = "vinyl-tracker.html.v1";
 
     // --- State ---
-    let items = load();
+    let items = loadLocal();
     let editingId = null;
 
     // --- Elements ---
@@ -271,11 +298,11 @@
         notes.appendChild(tags);
         if (i.notes) { const p=document.createElement('div'); p.style.marginTop='6px'; p.textContent=i.notes; notes.appendChild(p); }
         tr.appendChild(notes);
-        const rating = document.createElement('td'); rating.textContent = (i.rating ?? '').toString(); tr.appendChild(rating);
-        const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
+        const color = document.createElement('td'); color.textContent = i.color || ''; tr.appendChild(color);
+const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
         const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
         const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten'; ebtn.addEventListener('click', ()=>openEditor(i.id)); actions.appendChild(ebtn);
-        const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px'; dbtn.addEventListener('click', ()=>{ if (confirm('Wirklich löschen?')) { items = items.filter(x=>x.id!==i.id); save(); render(); stats(); } }); actions.appendChild(dbtn);
+        const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px'; dbtn.addEventListener('click', ()=>{ if (confirm('Wirklich löschen?')) { items = items.filter(x=>x.id!==i.id); saveLocal(); render(); stats(); } }); actions.appendChild(dbtn);
         tr.appendChild(actions);
         tbody.appendChild(tr);
       }
@@ -292,9 +319,53 @@
 
     function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-    // --- Storage ---
-    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
-    function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
+    
+    // --- Storage (Firestore mit Fallback auf localStorage) ---
+    async function fsLoadAll(){
+      try{
+        if (!window.firebaseDB || !window.firebaseUID) return null;
+        const colRef = collection(window.firebaseDB, 'users', window.firebaseUID, 'records');
+        const snap = await getDocs(colRef);
+        const arr = [];
+        snap.forEach(d => {
+          const val = d.data();
+          // Defensive: id aus DocID bevorzugen
+          arr.push({ ...val, id: d.id });
+        });
+        return arr;
+      } catch(e){
+        console.warn('Firestore load failed', e);
+        return null;
+      }
+    }
+
+    async function fsUpsert(item){
+      try{
+        if (!window.firebaseDB || !window.firebaseUID) return false;
+        const ref = doc(window.firebaseDB, 'users', window.firebaseUID, 'records', item.id);
+        await setDoc(ref, item, { merge: true });
+        return true;
+      } catch(e){
+        console.warn('Firestore upsert failed', e);
+        return false;
+      }
+    }
+
+    async function fsDelete(id){
+      try{
+        if (!window.firebaseDB || !window.firebaseUID) return false;
+        const ref = doc(window.firebaseDB, 'users', window.firebaseUID, 'records', id);
+        await deleteDoc(ref);
+        return true;
+      } catch(e){
+        console.warn('Firestore delete failed', e);
+        return false;
+      }
+    }
+
+    function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+    function loadLocal(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
+
 
     // --- Editor ---
     function openEditor(id){
@@ -334,7 +405,8 @@
       if (!rec.artist || !rec.title) { alert('Bitte Künstler und Titel ausfüllen.'); return; }
       const i = items.findIndex(x=>x.id===rec.id);
       if (i>=0) items[i] = rec; else items.unshift(rec);
-      save(); render(); dlg.close();
+      // Firestore bevorzugen, sonst localStorage
+      fsUpsert(rec).then((ok)=>{ if(!ok) saveLocal(); }).finally(()=>{ render(); dlg.close(); });
     }
 
     // --- Barcode Lookup ---
@@ -436,12 +508,21 @@
     el('btn-import').addEventListener('click', ()=> el('file-import').click());
     el('file-import').addEventListener('change', async (e)=>{
       const file = e.target.files?.[0]; if (!file) return;
-      try { const text = await file.text(); const parsed = JSON.parse(text); if (!Array.isArray(parsed)) throw new Error(); items = parsed; save(); render(); }
+      try { const text = await file.text(); const parsed = JSON.parse(text); if (!Array.isArray(parsed)) throw new Error(); items = parsed; saveLocal(); render(); }
       catch { alert('Konnte Datei nicht laden (erwarte JSON aus Export).'); }
       finally { e.target.value=''; }
     });
 
     function download(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }
+
+    // Firebase ready → Cloud laden
+    document.addEventListener('firebase-ready', async () => {
+      const cloud = await fsLoadAll();
+      if (Array.isArray(cloud) && cloud.length){
+        items = cloud;
+        render();
+      }
+    });
 
     // initial
     render();
