@@ -121,7 +121,7 @@
             <option value="color-asc">Farbe A–Z</option>
           </select>
         </div>
-        <div class="row" style="gap:6px"><button id="btn-reset">Reset</button><button id="btn-cloud">Cloud laden</button><button id="btn-migrate">Legacy → Public</button></div>
+        <div class="row" style="gap:6px"><button id="btn-reset">Reset</button><button id="btn-cloud">Cloud laden</button></div>
       </div>
     </section>
 
@@ -200,11 +200,10 @@
   </div>
 
   
-  
   <!-- Firebase (ES Modules) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+    import { getFirestore, collection, collectionGroup, doc, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
@@ -217,17 +216,13 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
     const s = document.getElementById("firebase-status");
     if (s) s.textContent = "✅ Firestore verbunden (ohne Auth)";
-
     window.firebaseApp = app;
     window.firebaseDB = db;
-
-    // Sofort signalisieren, dass Firestore verfügbar ist
-    document.dispatchEvent(new CustomEvent('firebase-ready', { detail: {} }));
+    window.firebaseFns = { collection, collectionGroup, doc, getDocs, setDoc, deleteDoc };
+    document.dispatchEvent(new CustomEvent('firebase-ready'));
   </script>
-
 
 
   <!-- Deine App-Logik (unverändert) -->
@@ -285,7 +280,7 @@
         if (i.notes) { const p=document.createElement('div'); p.style.marginTop='6px'; p.textContent=i.notes; notes.appendChild(p); }
         tr.appendChild(notes);
         const color = document.createElement('td'); color.textContent = i.color || ''; tr.appendChild(color);
-const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
+        const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
         const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
         const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten'; ebtn.addEventListener('click', ()=>openEditor(i.id)); actions.appendChild(ebtn);
         const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px'; dbtn.addEventListener('click', ()=>{ if (confirm('Wirklich löschen?')) { items = items.filter(x=>x.id!==i.id); save(); render(); stats(); } }); actions.appendChild(dbtn);
@@ -306,49 +301,14 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
     function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
     
-    
-    
-    
-    // --- Rescue: Migration von legacy 'users/*/records' nach 'publicRecords' ---
-    async function tryMigrateFromLegacy(){
-      try{
-        const { collection, getDocs, collectionGroup, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
-        const db = window.firebaseDB;
-        if (!db) return false;
-
-        // 1) Ist publicRecords bereits gefüllt?
-        const pubSnap = await getDocs(collection(db, 'publicRecords'));
-        if (pubSnap.size > 0) return false; // nichts migrieren
-
-        // 2) Alle legacy records einsammeln
-        const cg = collectionGroup(db, 'records');
-        const all = await getDocs(cg);
-        if (all.empty) return false;
-
-        // 3) In publicRecords schreiben (DocID beibehalten falls vorhanden)
-        let count = 0;
-        for (const d of all.docs){
-          const data = d.data();
-          const id = data?.id || d.id;
-          await setDoc(doc(db, 'publicRecords', id), { ...data, id });
-          count++;
-        }
-        console.info('Migration abgeschlossen:', count, 'Records');
-        return count > 0;
-      } catch(e){
-        console.warn('Migration fehlgeschlagen', e);
-        return false;
-      }
-    }
-
     // --- Storage (öffentliche Firestore-Collection, keine Auth) ---
+    const F = window.firebaseFns || {};
     async function fsLoadAll(){
       const status = document.getElementById('firebase-status');
       try{
-        if (!window.firebaseDB) return null;
-        const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
-        const colRef = collection(window.firebaseDB, 'publicRecords');
-        const snap = await getDocs(colRef);
+        if (!window.firebaseDB || !F.collection || !F.getDocs) return null;
+        const colRef = F.collection(window.firebaseDB, 'publicRecords');
+        const snap = await F.getDocs(colRef);
         const arr = [];
         snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
         return arr;
@@ -358,60 +318,30 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
         return null;
       }
     }
-
     async function fsUpsert(item){
       try{
-        if (!window.firebaseDB) return false;
-        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
-        const ref = doc(window.firebaseDB, 'publicRecords', item.id);
-        await setDoc(ref, item, { merge: true });
+        if (!window.firebaseDB || !F.doc || !F.setDoc) return false;
+        const ref = F.doc(window.firebaseDB, 'publicRecords', item.id);
+        await F.setDoc(ref, item, { merge: true });
         return true;
       } catch(e){
         console.warn('Firestore upsert failed', e);
         return false;
       }
     }
-
     async function fsDelete(id){
       try{
-        if (!window.firebaseDB) return false;
-        const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
-        const ref = doc(window.firebaseDB, 'publicRecords', id);
-        await deleteDoc(ref);
+        if (!window.firebaseDB || !F.doc || !F.deleteDoc) return false;
+        const ref = F.doc(window.firebaseDB, 'publicRecords', id);
+        await F.deleteDoc(ref);
         return true;
       } catch(e){
         console.warn('Firestore delete failed', e);
         return false;
       }
     }
-
     function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
     function loadLocal(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
-
-    function byIdMap(list){ const m = new Map(); for (const r of list) m.set(r.id, r); return m; }
-    function parseIso(s){ try { return Date.parse(s||''); } catch { return 0; } }
-
-    // Merge: prefer newer 'updatedAt', else prefer cloud
-    function mergeLocalCloud(localArr, cloudArr){
-      const out = new Map();
-      const L = byIdMap(localArr || []);
-      const C = byIdMap(cloudArr || []);
-      // union keys
-      const keys = new Set([...L.keys(), ...C.keys()]);
-      for (const k of keys){
-        const l = L.get(k); const c = C.get(k);
-        if (l && c){
-          const tl = parseIso(l.updatedAt || l.createdAt);
-          const tc = parseIso(c.updatedAt || c.createdAt);
-          out.set(k, (tl >= tc) ? l : c);
-        } else {
-          out.set(k, l || c);
-        }
-      }
-      return [...out.values()];
-    }
- catch{ return []; } }
- catch{ return []; } }
 
 
     // --- Editor ---
@@ -453,9 +383,8 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
       if (!rec.artist || !rec.title) { alert('Bitte Künstler und Titel ausfüllen.'); return; }
       const i = items.findIndex(x=>x.id===rec.id);
       if (i>=0) items[i] = rec; else items.unshift(rec);
-      // Write to cloud and local for consistency
       fsUpsert(rec).finally(()=>{ saveLocal(); render(); dlg.close(); });
-}
+    }
 
     // --- Barcode Lookup ---
     async function lookupByBarcode(code){
@@ -533,8 +462,7 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
 
     el('btn-reset').addEventListener('click', ()=>{ el('search').value=''; el('formatFilter').value=''; el('condFilter').value=''; el('sortBy').value='createdAt-desc'; render(); });
     ['search','formatFilter','condFilter','sortBy'].forEach(id=> el(id).addEventListener('input', render));
-    el('btn-cloud').addEventListener('click', async ()=>{ const cloud = await fsLoadAll(); if (Array.isArray(cloud)) { items = cloud; render(); } });
-    el('btn-migrate').addEventListener('click', async ()=>{ const ok = await tryMigrateFromLegacy(); if (ok){ const cloud = await fsLoadAll(); if (Array.isArray(cloud)) { items = cloud; saveLocal(); render(); } } });
+    el('btn-cloud').addEventListener('click', async ()=>{ const cloud = await fsLoadAll(); if (Array.isArray(cloud)) { items = mergeByUpdatedAt(loadLocal(), cloud); saveLocal(); render(); } });
 
     el('btn-lookup').addEventListener('click', ()=> autofillFromBarcode());
     el('barcode').addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ e.preventDefault(); autofillFromBarcode(); } });
@@ -566,32 +494,23 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
     function download(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }
 
     
-    // Firebase ready → Cloud laden & mergen
-    document.addEventListener('firebase-ready', async () => {
-      await tryMigrateFromLegacy();
-      const local = loadLocal();
-      const cloud = await fsLoadAll();
-      if (Array.isArray(cloud)) {
-        if ((!cloud || cloud.length===0) && local && local.length){
-          // seed cloud with local
-          for (const r of local){ await fsUpsert(r); }
-          items = local;
-        } else if ((!local || local.length===0) && cloud.length){
-          items = cloud;
-          saveLocal();
-        } else {
-          items = mergeLocalCloud(local, cloud);
-          // push newer local changes to cloud
-          for (const r of items){ await fsUpsert(r); }
-          saveLocal();
-        }
-        render();
+    function mergeByUpdatedAt(localArr, cloudArr){
+      const map = new Map();
+      const all = [...(localArr||[]), ...(cloudArr||[])];
+      for (const r of all){
+        const k = r.id;
+        const prev = map.get(k);
+        const t = Date.parse(r.updatedAt || r.createdAt || 0) || 0;
+        const tp = prev ? (Date.parse(prev.updatedAt || prev.createdAt || 0) || 0) : -1;
+        if (!prev || t >= tp) map.set(k, r);
       }
-    });
-
+      return [...map.values()];
+    }
+    document.addEventListener('firebase-ready', async () => {
       const cloud = await fsLoadAll();
-      if (Array.isArray(cloud)) {
-        items = cloud;
+      if (Array.isArray(cloud)){
+        items = mergeByUpdatedAt(loadLocal(), cloud);
+        saveLocal();
         render();
       }
     });
