@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🎵 Schallplatten-Tracker (HTML) – mit Barcode & Firebase</title>
-<meta name="description" content="Einfacher Vinyl-Tracker, läuft im Browser und speichert automatisch in Firestore.">
+<title>🎵 Schallplatten-Tracker – mit Barcode & Firestore (Lite)</title>
+<meta name="description" content="Vinyl-Tracker im Browser mit automatischem Cloud-Sync über Firestore Lite.">
 <link rel="icon" href="data:,">
 <style>
   :root {
@@ -76,7 +76,7 @@
       <div class="head">
         <div>
           <h1>SCHALLPLATTEN-TRACKER</h1>
-          <div class="sub">mit Barcode-Autofill + Auto-Cloud-Sync (Firestore)</div>
+          <div class="sub">mit Barcode-Autofill + Auto-Cloud-Sync (Firestore Lite)</div>
         </div>
         <div class="row right">
           <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
@@ -202,10 +202,10 @@
   <!-- Firebase (ES Modules) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    /* 👉 Firestore LITE statt Full */
+    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-lite.js";
+    /* Auth ist optional bei offenen Regeln – lassen wir weg, damit es überall läuft */
 
-    // --- Deine Config (öffentlich, ok) ---
     const firebaseConfig = {
       apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
       authDomain: "platten-c1817.firebaseapp.com",
@@ -215,55 +215,59 @@
       appId: "1:376624319679:web:28e871bf481b27342e4a0a"
     };
 
-    // Init
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const auth = getAuth(app);
 
-    // Statusanzeige
     const s = document.getElementById("firebase-status");
     const setStatus = (txt)=>{ if(s) s.textContent = txt; };
+    setStatus("✅ Firebase bereit (Lite)");
 
-    // Anonym anmelden (auch bei offenen Regeln praktisch für Meta)
-    setStatus("🔌 Firebase lädt…");
-    signInAnonymously(auth).catch(()=>{ /* offene Regeln → weiter */ });
-
-    let uid = null;
-    onAuthStateChanged(auth, (user)=>{
-      uid = user?.uid || null;
-      setStatus("✅ Firebase verbunden");
-      // Auto-Load starten (wird im App-Script gesetzt)
-      if (window.firebaseCloud?.autoInitialLoad) window.firebaseCloud.autoInitialLoad();
-    });
-
-    // --- Cloud API ---
-    // Vorläufig: globales Doc "vinyl/latest" (alle haben Zugriff bei offenen Regeln)
+    // --- Cloud API (globales Doc: vinyl/latest) ---
     const REF = doc(db, "vinyl", "latest");
 
     async function cloudSave(items, meta = {}){
+      console.log("[cloudSave] write → vinyl/latest", {count: items.length});
       const payload = {
         items,
-        meta: {
-          ...meta,
-          savedBy: uid || "anon",
-          updatedAt: serverTimestamp()
-        }
+        meta: { ...meta, updatedAt: serverTimestamp() }
       };
-      await setDoc(REF, payload, { merge: false });
+      try {
+        await setDoc(REF, payload, { merge: false });
+        console.log("[cloudSave] OK");
+      } catch (e){
+        console.error("[cloudSave] FAIL", e);
+        throw e;
+      }
     }
 
     async function cloudLoad(){
-      const snap = await getDoc(REF);
-      if (!snap.exists()) return null;
-      return snap.data(); // { items, meta: { updatedAt: Timestamp, ... } }
+      console.log("[cloudLoad] read ← vinyl/latest");
+      try {
+        const snap = await getDoc(REF);
+        if (!snap.exists()){
+          console.log("[cloudLoad] leer (kein Dokument)");
+          return null;
+        }
+        const data = snap.data();
+        console.log("[cloudLoad] OK, items:", Array.isArray(data.items) ? data.items.length : 0);
+        return data;
+      } catch (e){
+        console.error("[cloudLoad] FAIL", e);
+        throw e;
+      }
     }
 
-    // Exponieren für die App-Logik
     window.firebaseCloud = {
       cloudSave,
       cloudLoad,
       autoInitialLoad: null
     };
+
+    // 🔧 Fallback: starte Auto-Load nach kurzer Zeit,
+    // damit es auch bei file:// oder restriktiven Browsern losläuft
+    setTimeout(()=> {
+      if (window.firebaseCloud?.autoInitialLoad) window.firebaseCloud.autoInitialLoad();
+    }, 300);
   </script>
 
   <!-- App-Logik -->
@@ -274,23 +278,18 @@
     const STORAGE_KEY = "vinyl-tracker.html.v1";
     const STORAGE_META_KEY = "vinyl-tracker.html.v1.meta";
 
-    // --- State ---
     let items = load();
     let editingId = null;
 
-    // --- Elements ---
     const el = (id) => document.getElementById(id);
     const tbody = el('tbody');
     const dlg = el('dlg');
 
-    // Populate selects
     function fillSelect(id, opts){ const s = el(id); s.innerHTML = ''; opts.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; s.appendChild(o); }); }
     fillSelect('f-format', FORMATS); fillSelect('f-condition', CONDITIONS);
-    // filters
     (function(){ const f = el('formatFilter'); FORMATS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
     (function(){ const f = el('condFilter'); CONDITIONS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
 
-    // --- Render ---
     function render(){
       const q = el('search').value.trim().toLowerCase();
       const ff = el('formatFilter').value; const cf = el('condFilter').value; const sb = el('sortBy').value;
@@ -329,8 +328,6 @@
         tr.appendChild(actions);
         tbody.appendChild(tr);
       }
-
-      // stats
       stats();
     }
 
@@ -342,8 +339,8 @@
 
     function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-    // --- Storage (lokal) ---
-    function save(){ // erweitert: Auto-Cloud-Save (debounced)
+    // --- Storage (lokal) + Auto-Cloud-Save ---
+    function save(){
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       const meta = { localUpdatedAt: new Date().toISOString() };
       saveMeta(meta);
@@ -355,7 +352,7 @@
             await window.firebaseCloud.cloudSave(items, meta);
           }
         } catch (e){
-          console.warn("Cloud save failed (offline oder Regeln):", e);
+          console.warn("Cloud save failed (offline/Regeln/Netz):", e?.code || e?.message || e);
         }
       }, 800);
     }
@@ -412,7 +409,7 @@
       const clean = (code||'').replace(/\D/g,'');
       if (!clean) { status.textContent = 'Kein gültiger Code.'; return null; }
 
-      // 1) MusicBrainz Release-Suche
+      // 1) MusicBrainz
       try {
         const mbUrl = `https://musicbrainz.org/ws/2/release/?query=barcode:${clean}&fmt=json`;
         const mb = await fetch(mbUrl, { headers: { 'User-Agent': 'VinylTrackerHTML/1.0 (barcode lookup)', 'Accept': 'application/json' } });
@@ -425,7 +422,6 @@
           const label = (hit["label-info"]||[])[0]?.label?.name || '';
           const catalog = (hit["label-info"]||[])[0]?.catalog_number || '';
           const mbid = hit.id;
-          // Cover Art Archive (Release → front)
           let cover = '';
           try {
             const caa = await fetch(`https://coverartarchive.org/release/${mbid}`);
@@ -440,7 +436,7 @@
         }
       } catch (e){ console.warn(e); }
 
-      // 2) Optional: Discogs (wenn Token vorhanden)
+      // 2) Discogs (optional)
       const token = el('discogsToken').value.trim();
       if (token){
         try {
@@ -460,7 +456,6 @@
       return null;
     }
 
-    // Autofill into editor
     async function autofillFromBarcode(){
       const code = el('barcode').value;
       const info = await lookupByBarcode(code);
@@ -474,7 +469,7 @@
       el('f-cover').value = info.coverUrl || '';
     }
 
-    // --- Events ---
+    // Events
     el('btn-add').addEventListener('click', ()=> openEditor(null));
     el('btn-save').addEventListener('click', (e)=>{ e.preventDefault(); saveEditor(); });
     el('btn-cancel').addEventListener('click', (e)=>{ e.preventDefault(); dlg.close(); });
@@ -527,21 +522,17 @@
 
         const localMeta = loadMeta();
         const cloudTS = cloud.meta?.updatedAt;
-        // Robust Timestamp → ms
         const cloudUpdated = cloudTS?.toMillis ? cloudTS.toMillis() :
                              (cloudTS?.seconds ? cloudTS.seconds * 1000 : Date.parse(cloudTS || 0)) || 0;
         const localUpdated = Date.parse(localMeta?.localUpdatedAt || 0) || 0;
 
         const isLocalEmpty = !Array.isArray(items) || items.length === 0;
-
         if (isLocalEmpty || cloudUpdated > localUpdated){
           items = cloud.items;
-          save();     // lokal cachen (triggert debounced Cloud-Save)
+          save(); // lokal cachen + (debounced) wieder hoch
         } else {
-          // Lokal „gewinnt“ → sicherheitshalber hochschreiben
           try { await window.firebaseCloud.cloudSave(items, localMeta); } catch {}
         }
-
         render();
       } catch (e){
         console.warn("Cloud hydrate failed:", e);
@@ -549,7 +540,6 @@
       }
     }
 
-    // Von Firebase-Init aus aufrufbar machen
     if (window.firebaseCloud) {
       window.firebaseCloud.autoInitialLoad = initialCloudHydrate;
     }
