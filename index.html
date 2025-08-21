@@ -121,7 +121,7 @@
             <option value="color-asc">Farbe A–Z</option>
           </select>
         </div>
-        <div class="row" style="gap:6px"><button id="btn-reset">Reset</button><button id="btn-cloud">Cloud laden</button></div>
+        <div class="row" style="gap:6px"><button id="btn-reset">Reset</button><button id="btn-cloud">Cloud laden</button><button id="btn-migrate">Legacy → Public</button></div>
       </div>
     </section>
 
@@ -308,6 +308,39 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
     
     
     
+    
+    // --- Rescue: Migration von legacy 'users/*/records' nach 'publicRecords' ---
+    async function tryMigrateFromLegacy(){
+      try{
+        const { collection, getDocs, collectionGroup, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js');
+        const db = window.firebaseDB;
+        if (!db) return false;
+
+        // 1) Ist publicRecords bereits gefüllt?
+        const pubSnap = await getDocs(collection(db, 'publicRecords'));
+        if (pubSnap.size > 0) return false; // nichts migrieren
+
+        // 2) Alle legacy records einsammeln
+        const cg = collectionGroup(db, 'records');
+        const all = await getDocs(cg);
+        if (all.empty) return false;
+
+        // 3) In publicRecords schreiben (DocID beibehalten falls vorhanden)
+        let count = 0;
+        for (const d of all.docs){
+          const data = d.data();
+          const id = data?.id || d.id;
+          await setDoc(doc(db, 'publicRecords', id), { ...data, id });
+          count++;
+        }
+        console.info('Migration abgeschlossen:', count, 'Records');
+        return count > 0;
+      } catch(e){
+        console.warn('Migration fehlgeschlagen', e);
+        return false;
+      }
+    }
+
     // --- Storage (öffentliche Firestore-Collection, keine Auth) ---
     async function fsLoadAll(){
       const status = document.getElementById('firebase-status');
@@ -501,6 +534,7 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
     el('btn-reset').addEventListener('click', ()=>{ el('search').value=''; el('formatFilter').value=''; el('condFilter').value=''; el('sortBy').value='createdAt-desc'; render(); });
     ['search','formatFilter','condFilter','sortBy'].forEach(id=> el(id).addEventListener('input', render));
     el('btn-cloud').addEventListener('click', async ()=>{ const cloud = await fsLoadAll(); if (Array.isArray(cloud)) { items = cloud; render(); } });
+    el('btn-migrate').addEventListener('click', async ()=>{ const ok = await tryMigrateFromLegacy(); if (ok){ const cloud = await fsLoadAll(); if (Array.isArray(cloud)) { items = cloud; saveLocal(); render(); } } });
 
     el('btn-lookup').addEventListener('click', ()=> autofillFromBarcode());
     el('barcode').addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ e.preventDefault(); autofillFromBarcode(); } });
@@ -534,6 +568,7 @@ const price = document.createElement('td'); price.textContent = i.price!=null ? 
     
     // Firebase ready → Cloud laden & mergen
     document.addEventListener('firebase-ready', async () => {
+      await tryMigrateFromLegacy();
       const local = loadLocal();
       const cloud = await fsLoadAll();
       if (Array.isArray(cloud)) {
