@@ -121,7 +121,7 @@
             <option value="color-asc">Farbe A–Z</option>
           </select>
         </div>
-        <div class="row" style="gap:6px"><button id="btn-reset">Reset</button><button id="btn-cloud">Cloud laden</button></div>
+        <div><button id="btn-reset">Reset</button></div>
       </div>
     </section>
 
@@ -199,6 +199,24 @@
     </dialog>
   </div>
 
+  <!-- Firebase (ES Modules) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    const firebaseConfig = {
+      apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
+      authDomain: "platten-c1817.firebaseapp.com",
+      projectId: "platten-c1817",
+      storageBucket: "platten-c1817.firebasestorage.app",
+      messagingSenderId: "376624319679",
+      appId: "1:376624319679:web:28e871bf481b27342e4a0a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const s = document.getElementById("firebase-status");
+    if (s) s.textContent = "✅ Firebase initialisiert";
+    window.firebaseApp = app;
+  </script>
+
   <!-- Deine App-Logik (unverändert) -->
   <script>
   (function(){
@@ -207,7 +225,7 @@
     const STORAGE_KEY = "vinyl-tracker.html.v1";
 
     // --- State ---
-    let items = loadLocal();
+    let items = load();
     let editingId = null;
 
     // --- Elements ---
@@ -254,7 +272,7 @@
         if (i.notes) { const p=document.createElement('div'); p.style.marginTop='6px'; p.textContent=i.notes; notes.appendChild(p); }
         tr.appendChild(notes);
         const color = document.createElement('td'); color.textContent = i.color || ''; tr.appendChild(color);
-        const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
+const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
         const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
         const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten'; ebtn.addEventListener('click', ()=>openEditor(i.id)); actions.appendChild(ebtn);
         const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px'; dbtn.addEventListener('click', ()=>{ if (confirm('Wirklich löschen?')) { items = items.filter(x=>x.id!==i.id); save(); render(); stats(); } }); actions.appendChild(dbtn);
@@ -274,52 +292,9 @@
 
     function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-    
-    // --- Storage (öffentliche Firestore-Collection, keine Auth) ---
-    function getFB(){ return { db: window.firebaseDB, fns: window.firebaseFns || {} }; }
-    async function fsLoadAll(){
-      const status = document.getElementById('firebase-status');
-      try{
-        const { db, fns } = getFB();
-        if (!db || !fns.collection || !fns.getDocs) return null;
-        const colRef = fns.collection(db, 'publicRecords');
-        const snap = await fns.getDocs(colRef);
-        const arr = [];
-        snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
-        return arr;
-      } catch(e){
-        console.warn('Firestore load failed', e);
-        if (status) status.textContent = '🚫 Firestore: ' + (e?.code || 'Fehler');
-        return null;
-      }
-    }
-    async function fsUpsert(item){
-      try{
-        const { db, fns } = getFB();
-        if (!db || !fns.doc || !fns.setDoc) return false;
-        const ref = fns.doc(db, 'publicRecords', item.id);
-        await fns.setDoc(ref, item, { merge: true });
-        return true;
-      } catch(e){
-        console.warn('Firestore upsert failed', e);
-        return false;
-      }
-    }
-    async function fsDelete(id){
-      try{
-        const { db, fns } = getFB();
-        if (!db || !fns.doc || !fns.deleteDoc) return false;
-        const ref = fns.doc(db, 'publicRecords', id);
-        await fns.deleteDoc(ref);
-        return true;
-      } catch(e){
-        console.warn('Firestore delete failed', e);
-        return false;
-      }
-    }
-    function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
-    function loadLocal(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
-
+    // --- Storage ---
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+    function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
 
     // --- Editor ---
     function openEditor(id){
@@ -354,13 +329,12 @@
         coverUrl: el('f-cover').value.trim(),
         tags: el('f-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
         notes: el('f-notes').value.trim(),
-        createdAt: items.find(x=>x.id===editingId)?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: items.find(x=>x.id===editingId)?.createdAt || new Date().toISOString()
       };
       if (!rec.artist || !rec.title) { alert('Bitte Künstler und Titel ausfüllen.'); return; }
       const i = items.findIndex(x=>x.id===rec.id);
       if (i>=0) items[i] = rec; else items.unshift(rec);
-      fsUpsert(rec).finally(()=>{ saveLocal(); render(); dlg.close(); });
+      save(); render(); dlg.close();
     }
 
     // --- Barcode Lookup ---
@@ -439,7 +413,6 @@
 
     el('btn-reset').addEventListener('click', ()=>{ el('search').value=''; el('formatFilter').value=''; el('condFilter').value=''; el('sortBy').value='createdAt-desc'; render(); });
     ['search','formatFilter','condFilter','sortBy'].forEach(id=> el(id).addEventListener('input', render));
-    el('btn-cloud').addEventListener('click', async ()=>{ const c = await fsLoadAll(); if (Array.isArray(c)) { items = mergeByUpdatedAt(loadLocal(), c); saveLocal(); render(); } });
 
     el('btn-lookup').addEventListener('click', ()=> autofillFromBarcode());
     el('barcode').addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ e.preventDefault(); autofillFromBarcode(); } });
@@ -470,28 +443,6 @@
 
     function download(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }
 
-    
-    function mergeByUpdatedAt(localArr, cloudArr){
-      const map = new Map();
-      const all = [...(localArr||[]), ...(cloudArr||[])];
-      for (const r of all){
-        const k = r.id;
-        const prev = map.get(k);
-        const t = Date.parse(r.updatedAt || r.createdAt || 0) || 0;
-        const tp = prev ? (Date.parse(prev.updatedAt || prev.createdAt || 0) || 0) : -1;
-        if (!prev || t >= tp) map.set(k, r);
-      }
-      return [...map.values()];
-    }
-    document.addEventListener('firebase-ready', async () => {
-      const cloud = await fsLoadAll();
-      if (Array.isArray(cloud)){
-        items = mergeByUpdatedAt(loadLocal(), cloud);
-        saveLocal();
-        render();
-      }
-    });
-
     // initial
     render();
   })();
@@ -511,27 +462,5 @@
       if (els.themeToggle) els.themeToggle.addEventListener('click', ()=> applyTheme(document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light'));
     })();
   </script>
-
-  <!-- Firebase (ES Modules) at the end, so UI is ready even if CDN stottert -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
-      authDomain: "platten-c1817.firebaseapp.com",
-      projectId: "platten-c1817",
-      storageBucket: "platten-c1817.firebasestorage.app",
-      messagingSenderId: "376624319679",
-      appId: "1:376624319679:web:28e871bf481b27342e4a0a"
-    };
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    window.firebaseDB = db;
-    window.firebaseFns = { collection, doc, getDocs, setDoc, deleteDoc };
-    const s = document.getElementById('firebase-status'); if (s) s.textContent = '✅ Firestore verbunden (ohne Auth)';
-    document.dispatchEvent(new CustomEvent('firebase-ready'));
-  </script>
-
 </body>
 </html>
