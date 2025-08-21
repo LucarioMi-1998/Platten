@@ -3,105 +3,162 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vinyl Tracker – Single File (Firestore)</title>
+  <title>Vinyl Tracker – Plus-Form & Barcode Lookup (Firestore)</title>
   <style>
-    :root { --bg:#0b0c10; --panel:#0f1117; --panel2:#12151d; --border:#1f2430; --text:#e5e7eb; --muted:#9da3ae; --brand:#4f46e5; --ok:#22c55e; --bad:#f97316; }
-    *{box-sizing:border-box}
-    body{margin:0;background:radial-gradient(1200px 900px at 80% -20%, #1a2030 0%, var(--bg) 40%) no-repeat, var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:980px;margin:0 auto;padding:28px 18px 56px}
-    h1{margin:0 0 10px;font-size:clamp(22px,3vw,32px);letter-spacing:.2px}
+    :root{--bg:#0b0c10;--panel:#0f1117;--panel2:#12151d;--border:#1f2430;--text:#e5e7eb;--muted:#9da3ae;--brand:#6366f1;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(1000px 800px at 75% -20%, #1a2030 0%, var(--bg) 40%) no-repeat, var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 56px}
+    h1{margin:0 0 6px;font-size:clamp(22px,3.2vw,34px)}
     .muted{color:var(--muted)}
+    .row{display:grid;grid-template-columns:1fr;gap:10px}
+    .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
     .card{background:linear-gradient(180deg,var(--panel) 0%, var(--panel2) 100%); border:1px solid var(--border); border-radius:16px; padding:14px; box-shadow:0 10px 30px rgba(0,0,0,.35)}
-    .row{display:grid;grid-template-columns:2fr 2fr 1fr;gap:10px}
-    label{display:block;font-size:.85rem;color:var(--muted);margin:4px 2px}
-    input{width:100%;background:#0b0e14;color:var(--text);border:1px solid #23283a;border-radius:10px;padding:.7rem .85rem;outline:none}
-    input::placeholder{color:#6b7280}
-    button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:.7rem 1rem;font-weight:700;cursor:pointer}
-    button.secondary{background:transparent;border:1px solid #324056;color:#cbd5e1}
-    button.danger{background:transparent;border:1px solid #7f1d1d;color:#fda4af}
     .header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
     .status{display:flex;align-items:center;gap:8px;font-size:.95rem}
     .dot{width:.65rem;height:.65rem;border-radius:999px;background:var(--ok)}
-    .list{display:grid;gap:8px;margin-top:10px}
-    .item{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0e1220;border:1px solid #23283a;border-radius:12px;padding:10px 12px}
-    .item .meta{font-size:.9rem}
-    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    .btn{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:.7rem 1rem;font-weight:700;cursor:pointer}
+    .btn.secondary{background:transparent;border:1px solid #324056;color:#cbd5e1}
+    .btn.danger{background:transparent;border:1px solid #7f1d1d;color:#fda4af}
     .pill{display:inline-block;padding:.25rem .6rem;border:1px solid #2b3243;border-radius:999px;color:var(--muted);font-size:.75rem}
-    code{background:#0b0e14;border:1px solid #23283a;border-radius:8px;padding:2px 6px}
+    label{display:block;font-size:.85rem;color:var(--muted);margin:4px 2px}
+    input,select,textarea{width:100%;background:#0b0e14;color:var(--text);border:1px solid #23283a;border-radius:10px;padding:.7rem .85rem;outline:none}
+    input::placeholder{color:#6b7280}
+    textarea{min-height:90px;resize:vertical}
+    .list{display:grid;gap:8px}
+    .item{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0e1220;border:1px solid #23283a;border-radius:12px;padding:10px 12px}
+    .item .meta{font-size:.95rem}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .toast{margin-top:10px;padding:10px;border-radius:10px;border:1px solid #374151}
+    .toast.err{border-color:#7f1d1d;color:#fecaca;background:#1b1010}
+    .toast.ok{border-color:#14532d;color:#bbf7d0;background:#0d1b10}
+    dialog{border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,var(--panel) 0%, var(--panel2) 100%);color:var(--text);width:min(900px,95vw);}
+    dialog::backdrop{background:rgba(0,0,0,.6)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)}
+    .modal-body{padding:10px 14px}
     .footer{margin-top:20px;color:var(--muted);font-size:.85rem}
+    .kbd{background:#0b0e14;border:1px solid #23283a;border-radius:6px;padding:2px 6px}
+    img.cover{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid #23283a}
   </style>
-  <!--
-    Firestore Rules (zur Info; Deployment erfolgt NICHT aus dieser Datei):
-    rules_version = '2';
-    service cloud.firestore {
-      match /databases/{database}/documents {
-        match /{document=**} {
-          allow read, write: if request.time < timestamp.date(2027, 9, 20);
-        }
-      }
-    }
-  -->
 </head>
 <body>
   <div class="wrap">
     <div class="header">
       <div>
-        <h1>Vinyl Tracker <span class="pill">Single-File</span></h1>
-        <div class="muted" style="max-width:60ch">Speichert Datensätze in <code>Firestore / vinyls</code>. Dieses Frontend ist eine einzige <code>index.html</code>.</div>
+        <h1>Vinyl Tracker <span class="pill">Firestore</span></h1>
+        <div class="muted" style="max-width:70ch">Plus-Button öffnet ein Formular mit allen Feldern. Barcode-Lookup ist separat – zieht Daten und füllt das Formular vor.</div>
       </div>
-      <div class="status"><span class="dot" id="status-dot"></span><span id="status-text">Firebase initialisiert</span></div>
+      <div class="status">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">Verbindung wird aufgebaut…</span>
+        <button id="test-write" class="btn secondary" title="Schreibt einen Testeintrag">Verbindung testen</button>
+      </div>
     </div>
 
     <div style="height:14px"></div>
 
+    <!-- Toolbar -->
     <div class="card">
-      <form id="add-form">
-        <div class="row">
-          <div>
-            <label for="artist">Artist</label>
-            <input id="artist" placeholder="z. B. Boards of Canada" required />
-          </div>
-          <div>
-            <label for="title">Title</label>
-            <input id="title" placeholder="z. B. Music Has the Right..." required />
-          </div>
-          <div>
-            <label for="barcode">Barcode (optional)</label>
-            <input id="barcode" placeholder="EAN/UPC" />
-          </div>
-        </div>
+      <div class="toolbar" style="justify-content:space-between">
         <div class="toolbar">
-          <button id="add-btn" type="submit">Speichern</button>
-          <button id="clear-btn" type="button" class="danger">Alle löschen</button>
+          <button id="btn-plus" class="btn">+ Hinzufügen</button>
           <span class="pill">Live-Updates</span>
+        </div>
+        <div class="muted"><span id="count">0</span> Einträge</div>
+      </div>
+    </div>
+
+    <div style="height:14px"></div>
+
+    <!-- Barcode Lookup (separat) -->
+    <div class="card">
+      <div class="toolbar" style="justify-content:space-between">
+        <h2 style="margin:4px 0">Barcode Lookup</h2>
+        <div class="muted">MusicBrainz & Cover Art (optional Discogs Token)</div>
+      </div>
+      <div class="row-3">
+        <div>
+          <label>Barcode</label>
+          <input id="bk-barcode" placeholder="EAN/UPC" />
+        </div>
+        <div>
+          <label>Discogs Token (optional)</label>
+          <input id="bk-discogs" placeholder="Discogs personal access token" />
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button id="bk-search" class="btn secondary" type="button">Suchen</button>
+        </div>
+      </div>
+      <div id="bk-result" class="row" style="margin-top:10px"></div>
+    </div>
+
+    <div style="height:14px"></div>
+
+    <!-- Liste -->
+    <div class="card">
+      <h2 style="margin:4px 0">Deine Sammlung</h2>
+      <div id="list" class="list"></div>
+      <p id="empty" class="muted" style="display:none">Noch keine Einträge.</p>
+      <div id="toast" class="toast" style="display:none"></div>
+    </div>
+
+    <p class="footer">Tipp: Wenn nichts erscheint, klicke „Verbindung testen“ – dann siehst du etwaige Fehlermeldungen (z. B. App Check, Regeln, Netzwerk).</p>
+  </div>
+
+  <!-- Modal: Plus-Form -->
+  <dialog id="dlg">
+    <div class="modal-header">
+      <strong>Neuer Eintrag</strong>
+      <button id="dlg-close" class="btn secondary">Schließen</button>
+    </div>
+    <div class="modal-body">
+      <form id="form">
+        <div class="row-3">
+          <div><label>Artist</label><input name="artist" required /></div>
+          <div><label>Title</label><input name="title" required /></div>
+          <div><label>Year</label><input name="year" inputmode="numeric" placeholder="YYYY" /></div>
+        </div>
+        <div class="row-3">
+          <div><label>Label</label><input name="label" /></div>
+          <div><label>Catalog</label><input name="catalog" /></div>
+          <div><label>Format</label><input name="format" placeholder="LP, EP, 12'', …" /></div>
+        </div>
+        <div class="row-3">
+          <div><label>Color</label><input name="color" /></div>
+          <div><label>Condition</label><input name="condition" placeholder="VG+, NM…" /></div>
+          <div><label>Rating</label><input name="rating" type="number" step="1" min="0" max="10" /></div>
+        </div>
+        <div class="row-2">
+          <div><label>Tags</label><input name="tags" placeholder="Kommagetrennt" /></div>
+          <div><label>Purchase Date</label><input name="purchaseDate" type="date" /></div>
+        </div>
+        <div class="row-2">
+          <div><label>Price (€)</label><input name="price" type="number" step="0.01" /></div>
+          <div><label>Barcode (optional)</label><input name="barcode" /></div>
+        </div>
+        <div class="row">
+          <div><label>Cover URL</label><input name="coverUrl" type="url" placeholder="https://…" /></div>
+        </div>
+        <div class="row">
+          <div><label>Notes</label><textarea name="notes" placeholder=""></textarea></div>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button id="save" class="btn" type="submit">Speichern</button>
+          <button id="reset" class="btn secondary" type="button">Zurücksetzen</button>
         </div>
       </form>
     </div>
-
-    <div style="height:14px"></div>
-
-    <div class="card">
-      <div class="toolbar" style="justify-content:space-between">
-        <h2 style="margin:4px 0">Deine Sammlung</h2>
-        <div class="muted"><span id="count">0</span> Einträge</div>
-      </div>
-      <div id="list" class="list"></div>
-      <p id="empty" class="muted" style="display:none;">Noch keine Einträge.</p>
-    </div>
-
-    <p class="footer">Hinweis: Firestore-Regeln sind in Firebase zu setzen (siehe Kommentar im Head). Hosting via GitHub Pages: einfach diese <code>index.html</code> pushen und Pages aktivieren.</p>
-  </div>
+  </dialog>
 
   <script type="module">
-    // --- Firebase CDN (Version kann angepasst werden) ---
+    // ---------- Firebase ----------
     const FBJS = "11.10.0";
     import { initializeApp } from `https://www.gstatic.com/firebasejs/${FBJS}/firebase-app.js`;
     import {
-      getFirestore, collection, addDoc, onSnapshot, query, orderBy,
-      serverTimestamp, deleteDoc, doc, getDocs
+      initializeFirestore, collection, addDoc, onSnapshot, query, orderBy,
+      serverTimestamp, deleteDoc, doc, getDocs, writeBatch, setDoc
     } from `https://www.gstatic.com/firebasejs/${FBJS}/firebase-firestore.js`;
 
-    // --- Luca's gewünschte Konfiguration (unverändert übernommen) ---
     const firebaseConfig = {
       apiKey: "AIzaSyBJtQ6hkPbWwoxeFbqqGyS0tj3nU72z0wg",
       authDomain: "vinyl-c7d5b.firebaseapp.com",
@@ -111,74 +168,230 @@
       appId: "1:444982033516:web:4e2e54af7aa803a4826c49"
     };
 
-    // --- Init ---
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    // Force long polling to avoid network issues (firewalls/Pages)
+    const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
-    // --- UI ---
-    const form = document.getElementById("add-form");
-    const artistEl = document.getElementById("artist");
-    const titleEl  = document.getElementById("title");
-    const barcodeEl= document.getElementById("barcode");
-    const listEl   = document.getElementById("list");
-    const emptyEl  = document.getElementById("empty");
-    const addBtn   = document.getElementById("add-btn");
-    const clearBtn = document.getElementById("clear-btn");
-    const countEl  = document.getElementById("count");
+    // ---------- UI refs ----------
+    const statusText = document.getElementById('status-text');
+    const toast = document.getElementById('toast');
+    const listEl = document.getElementById('list');
+    const emptyEl = document.getElementById('empty');
+    const countEl = document.getElementById('count');
+
+    const dlg = document.getElementById('dlg');
+    const btnPlus = document.getElementById('btn-plus');
+    const btnClose = document.getElementById('dlg-close');
+    const form = document.getElementById('form');
+    const btnSave = document.getElementById('save');
+    const btnReset = document.getElementById('reset');
+    const btnTest = document.getElementById('test-write');
+
+    const bkBarcode = document.getElementById('bk-barcode');
+    const bkDiscogs = document.getElementById('bk-discogs');
+    const bkSearch = document.getElementById('bk-search');
+    const bkResult = document.getElementById('bk-result');
 
     const col = collection(db, "vinyls");
     const q = query(col, orderBy("createdAt", "desc"));
 
-    // --- Render ---
-    const render = (docs) => {
+    // Helpers
+    const showToast = (msg, type='err') => {
+      toast.textContent = msg;
+      toast.className = 'toast ' + (type === 'ok' ? 'ok' : 'err');
+      toast.style.display = 'block';
+      setTimeout(()=> toast.style.display='none', 8000);
+    };
+
+    const renderList = (docs) => {
       listEl.innerHTML = "";
       countEl.textContent = String(docs.length);
-      if (!docs.length) {
-        emptyEl.style.display = "block";
-        return;
-      }
-      emptyEl.style.display = "none";
+      if (!docs.length) { emptyEl.style.display = 'block'; return; }
+      emptyEl.style.display = 'none';
       for (const d of docs) {
-        const data = d.data();
-        const row = document.createElement("div");
-        row.className = "item";
-        const left = document.createElement("div");
-        left.innerHTML = `<div class="meta"><strong>${data.artist ?? "—"} — ${data.title ?? "—"}</strong></div>
-                          <div class="muted">Barcode: ${data.barcode || "–"} · <code>${d.id}</code></div>`;
-        const right = document.createElement("div");
-        const del = document.createElement("button");
-        del.className = "secondary";
-        del.textContent = "Löschen";
-        del.addEventListener("click", async () => {
+        const x = d.data();
+        const el = document.createElement('div');
+        el.className = 'item';
+        const left = document.createElement('div');
+        left.innerHTML = `<div class="meta"><strong>${x.artist ?? '—'} — ${x.title ?? '—'}</strong></div>
+          <div class="muted">${x.year || ''} ${x.label ? '· '+x.label : ''} ${x.format ? '· '+x.format : ''}</div>`;
+        const right = document.createElement('div');
+        if (x.coverUrl) {
+          const img = document.createElement('img');
+          img.src = x.coverUrl;
+          img.alt = 'Cover';
+          img.className = 'cover';
+          right.appendChild(img);
+        }
+        const del = document.createElement('button');
+        del.className = 'btn danger';
+        del.textContent = 'Löschen';
+        del.addEventListener('click', async ()=>{
           del.disabled = true;
-          await deleteDoc(doc(db, "vinyls", d.id));
+          try { await deleteDoc(doc(db,'vinyls', d.id)); }
+          catch(err){ showToast('Löschen fehlgeschlagen: '+err.message); }
         });
         right.appendChild(del);
-        row.append(left, right);
-        listEl.appendChild(row);
+        el.append(left, right);
+        listEl.appendChild(el);
       }
     };
 
-    onSnapshot(q, (snap) => render(snap.docs));
+    // Live updates
+    try {
+      onSnapshot(q, (snap)=>{
+        statusText.textContent = 'Verbunden';
+        renderList(snap.docs);
+      }, (err)=>{
+        statusText.textContent = 'Fehler: ' + err.code;
+        showToast('Snapshot-Fehler: '+err.message);
+      });
+    } catch (err) {
+      statusText.textContent = 'Init-Fehler';
+      showToast('Initialisierung fehlgeschlagen: '+err.message);
+    }
 
-    form.addEventListener("submit", async (e) => {
+    // Modal
+    btnPlus.addEventListener('click', ()=> dlg.showModal());
+    btnClose.addEventListener('click', ()=> dlg.close());
+    btnReset.addEventListener('click', ()=> form.reset());
+
+    // Save form
+    form.addEventListener('submit', async (e)=>{
       e.preventDefault();
-      addBtn.disabled = true;
-      try {
-        await addDoc(col, {
-          artist: artistEl.value.trim(),
-          title: titleEl.value.trim(),
-          barcode: barcodeEl.value.trim() || null,
-          createdAt: serverTimestamp(),
-        });
-        artistEl.value = ""; titleEl.value = ""; barcodeEl.value = "";
-      } finally { addBtn.disabled = false; }
+      btnSave.disabled = true;
+      const fd = new FormData(form);
+      const data = Object.fromEntries(fd.entries());
+      // normalize
+      const num = (x)=> x===''? null : Number(x);
+      const str = (x)=> x===''? null : String(x);
+      const toDate = (x)=> x===''? null : new Date(x);
+      const payload = {
+        artist: str(data.artist),
+        title: str(data.title),
+        year: str(data.year),
+        label: str(data.label),
+        catalog: str(data.catalog),
+        format: str(data.format),
+        color: str(data.color),
+        condition: str(data.condition),
+        tags: str(data.tags),
+        notes: str(data.notes),
+        rating: data.rating===''? null : Number(data.rating),
+        purchaseDate: str(data.purchaseDate), // optional: store as string YYYY-MM-DD
+        price: data.price===''? null : Number(data.price),
+        coverUrl: str(data.coverUrl),
+        barcode: str(data.barcode),
+        createdAt: serverTimestamp(),
+      };
+      try{
+        await addDoc(col, payload);
+        showToast('Gespeichert ✔️', 'ok');
+        form.reset();
+        dlg.close();
+      }catch(err){
+        showToast('Speichern fehlgeschlagen: '+err.message);
+      }finally{
+        btnSave.disabled = false;
+      }
     });
 
-    clearBtn.addEventListener("click", async () => {
-      if (!confirm("Wirklich ALLE Einträge löschen?")) return;
-      const snap = await getDocs(col);
-      for (const d of snap.docs) await deleteDoc(d.ref);
+    // Test write
+    btnTest.addEventListener('click', async ()=>{
+      try {
+        await addDoc(col, { artist:'_test', title:'_ping', createdAt: serverTimestamp() });
+        showToast('Testeintrag erstellt ✔️ (wird gleich in der Liste sichtbar)', 'ok');
+      } catch (err) {
+        showToast('Test fehlgeschlagen: '+err.message);
+      }
+    });
+
+    // ---------- Barcode lookup ----------
+    async function fetchJSON(url, headers={}){
+      const r = await fetch(url, { headers });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }
+    function setBkResult(html){ bkResult.innerHTML = html; }
+    function fillFormFromObject(o){
+      const set = (name, value) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.value = value ?? ''; };
+      set('artist', o.artist); set('title', o.title); set('year', o.year);
+      set('label', o.label); set('catalog', o.catalog); set('format', o.format);
+      set('color', o.color); set('condition', o.condition);
+      set('coverUrl', o.coverUrl); set('barcode', o.barcode ?? bkBarcode.value.trim());
+      set('notes', o.notes); set('tags', o.tags); set('price', o.price);
+    }
+
+    async function lookupByBarcode(barcode, discogsToken){
+      // 1) MusicBrainz
+      const mb = await fetchJSON(`https://musicbrainz.org/ws/2/release/?query=barcode:${encodeURIComponent(barcode)}&fmt=json`,
+        { 'User-Agent': 'VinylTracker/1.0 (contact: example@example.com)' });
+      const rel = mb?.releases?.[0];
+      let out = {
+        barcode,
+        title: rel?.title || null,
+        artist: rel?.'artist-credit'?.[0]?.name || (rel?.'artist-credit'?.[0]?.artist?.name) || null,
+        year: rel?.date ? String(rel.date).slice(0,4) : null,
+        label: rel?.label-info?.[0]?.label?.name || null,
+        catalog: rel?.label-info?.[0]?.catalog-number || null,
+        format: rel?.media?.[0]?.format || null,
+      };
+      // Cover Art Archive
+      try{
+        if (rel?.id) {
+          const caa = await fetchJSON(`https://coverartarchive.org/release/${rel.id}`);
+          const img = caa?.images?.find(i=>i.front) || caa?.images?.[0];
+          if (img) out.coverUrl = (img.image || img.thumbnails?.large || img.thumbnails?.small);
+        }
+      }catch{}
+
+      // 2) Optional: Discogs (falls Token)
+      if (discogsToken) {
+        try{
+          const d = await fetchJSON(`https://api.discogs.com/database/search?type=release&barcode=${encodeURIComponent(barcode)}`, {
+            'Authorization': `Discogs token=${discogsToken}`,
+            'User-Agent': 'VinylTracker/1.0'
+          });
+          const r = d?.results?.[0];
+          if (r) {
+            out.title = out.title || r.title;
+            out.coverUrl = out.coverUrl || r.cover_image;
+            out.label = out.label || (Array.isArray(r.label) ? r.label[0] : r.label);
+            out.format = out.format || (Array.isArray(r.format) ? r.format.join(', ') : r.format);
+            out.year = out.year || r.year;
+          }
+        }catch(e){ console.warn('Discogs lookup failed', e); }
+      }
+      return out;
+    }
+
+    bkSearch.addEventListener('click', async ()=>{
+      setBkResult('Suche läuft…');
+      const code = bkBarcode.value.trim();
+      const token = bkDiscogs.value.trim();
+      if (!code) { setBkResult('<span class="muted">Bitte Barcode eingeben.</span>'); return; }
+      try{
+        const data = await lookupByBarcode(code, token);
+        const cover = data.coverUrl ? `<img class="cover" src="${data.coverUrl}" alt="cover">` : '';
+        setBkResult(`<div class="item">
+          <div>
+            <div class="meta"><strong>${data.artist ?? '—'} — ${data.title ?? '—'}</strong></div>
+            <div class="muted">${data.year || ''} ${data.label ? '· '+data.label : ''} ${data.format ? '· '+data.format : ''}</div>
+          </div>
+          <div class="toolbar">
+            ${cover}
+            <button id="bk-apply" class="btn">Übernehmen</button>
+          </div>
+        </div>`);
+        const apply = document.getElementById('bk-apply');
+        apply.addEventListener('click', (e)=>{
+          e.preventDefault();
+          fillFormFromObject(data);
+          dlg.showModal();
+        });
+      }catch(err){
+        setBkResult(`<div class="toast err">Lookup fehlgeschlagen: ${err.message}</div>`);
+      }
     });
   </script>
 </body>
