@@ -1,520 +1,185 @@
 <!doctype html>
 <html lang="de">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🎵 Schallplatten-Tracker – Bootstrap-Cloud-Sync (Firestore Lite)</title>
-<meta name="description" content="Vinyl-Tracker mit Barcode-Autofill, speichert beim Start lokale Daten sofort in Firestore.">
-<link rel="icon" href="data:,">
-<style>
-  :root {
-    --accent:#e30613; --accent-dark:#c00510;
-    --bg:#0f1216; --card:#161a20; --card-2:#1b2028; --text:#e9eef5; --muted:#9aa3af;
-    --ring:rgba(0,0,0,.28); --ring-2:rgba(255,255,255,.06); --chip:#232a34;
-  }
-  [data-theme="light"]{
-    --bg:#f6f8fb; --card:#fff; --card-2:#f8fafc; --text:#0f172a; --muted:#475569;
-    --ring:rgba(15,23,42,.1); --ring-2:rgba(0,0,0,.06); --chip:#eef2f7;
-  }
-  *{box-sizing:border-box} html,body{height:100%}
-  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-       background:radial-gradient(1200px 900px at 80% -20%,#1c212a 0%,var(--bg) 40%) no-repeat,var(--bg);color:var(--text)}
-  .container{max-width:1200px;margin:0 auto;padding:18px 20px 100px}
-  header{padding:28px 20px 8px;position:sticky;top:0;backdrop-filter:blur(8px);
-         background:linear-gradient(to bottom,rgba(15,18,22,.72),rgba(15,18,22,.32) 60%,transparent);z-index:10}
-  [data-theme="light"] header{background:linear-gradient(to bottom,rgba(255,255,255,.9),rgba(255,255,255,.6) 60%,transparent)}
-  .head{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:1200px;margin:0 auto}
-  h1{margin:0;letter-spacing:.6px;font-size:clamp(22px,3.5vw,34px)} .sub{color:var(--muted)}
-  .theme-toggle,button{appearance:none;border:1px solid var(--ring-2);border-radius:10px;cursor:pointer}
-  .theme-toggle{background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);padding:8px 12px;box-shadow:0 4px 16px var(--ring)}
-  .card{background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);border:1px solid var(--ring-2);border-radius:14px;box-shadow:0 8px 30px var(--ring)}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-  .stat{background:linear-gradient(180deg,var(--card-2) 0%,var(--card) 100%);border:1px solid var(--ring-2);border-radius:12px;padding:12px}
-  .stat .v{font-weight:800;font-size:22px}
-  label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
-  input,textarea,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a313b;background:#0f1319;color:var(--text);font-size:14px}
-  [data-theme="light"] input,[data-theme="light"] textarea,[data-theme="light"] select{background:#fff;border-color:#e5e7eb}
-  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-  button{background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);color:var(--text);padding:10px 12px;box-shadow:0 6px 18px var(--ring)}
-  button.primary{background:linear-gradient(180deg,var(--accent) 0%,var(--accent-dark) 100%);color:#fff;border-color:transparent;font-weight:700;box-shadow:0 8px 16px rgba(227,6,19,.3)}
-  .muted{color:var(--muted)} .grid{display:grid;gap:10px} .grid-2{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-  .table{width:100%;border-collapse:collapse} .table th,.table td{padding:10px;border-bottom:1px solid var(--ring-2);vertical-align:top;text-align:left}
-  .table th{font-weight:600;font-size:13px;color:var(--muted)} .cover{width:58px;height:58px;border-radius:8px;object-fit:cover;background:#222}
-  .badges{display:flex;gap:6px;flex-wrap:wrap} .badge{padding:2px 8px;border-radius:999px;font-size:12px;background:var(--chip);border:1px solid var(--ring-2)}
-  .hidden{display:none} dialog{border:none;border-radius:16px;padding:0;max-width:720px;width:calc(100% - 24px);
-         background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);color:var(--text);border:1px solid var(--ring-2)}
-  dialog .dialog-body{padding:16px} dialog::backdrop{background:rgba(0,0,0,.55)}
-  .ok{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 8px;border:1px solid var(--ring-2);border-radius:999px;background:var(--chip)}
-  .ok.err{border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08);color:#fecaca}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vinyl Tracker – Single File (Firestore)</title>
+  <style>
+    :root { --bg:#0b0c10; --panel:#0f1117; --panel2:#12151d; --border:#1f2430; --text:#e5e7eb; --muted:#9da3ae; --brand:#4f46e5; --ok:#22c55e; --bad:#f97316; }
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(1200px 900px at 80% -20%, #1a2030 0%, var(--bg) 40%) no-repeat, var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:980px;margin:0 auto;padding:28px 18px 56px}
+    h1{margin:0 0 10px;font-size:clamp(22px,3vw,32px);letter-spacing:.2px}
+    .muted{color:var(--muted)}
+    .card{background:linear-gradient(180deg,var(--panel) 0%, var(--panel2) 100%); border:1px solid var(--border); border-radius:16px; padding:14px; box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .row{display:grid;grid-template-columns:2fr 2fr 1fr;gap:10px}
+    label{display:block;font-size:.85rem;color:var(--muted);margin:4px 2px}
+    input{width:100%;background:#0b0e14;color:var(--text);border:1px solid #23283a;border-radius:10px;padding:.7rem .85rem;outline:none}
+    input::placeholder{color:#6b7280}
+    button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:.7rem 1rem;font-weight:700;cursor:pointer}
+    button.secondary{background:transparent;border:1px solid #324056;color:#cbd5e1}
+    button.danger{background:transparent;border:1px solid #7f1d1d;color:#fda4af}
+    .header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .status{display:flex;align-items:center;gap:8px;font-size:.95rem}
+    .dot{width:.65rem;height:.65rem;border-radius:999px;background:var(--ok)}
+    .list{display:grid;gap:8px;margin-top:10px}
+    .item{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0e1220;border:1px solid #23283a;border-radius:12px;padding:10px 12px}
+    .item .meta{font-size:.9rem}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    .pill{display:inline-block;padding:.25rem .6rem;border:1px solid #2b3243;border-radius:999px;color:var(--muted);font-size:.75rem}
+    code{background:#0b0e14;border:1px solid #23283a;border-radius:8px;padding:2px 6px}
+    .footer{margin-top:20px;color:var(--muted);font-size:.85rem}
+  </style>
+  <!--
+    Firestore Rules (zur Info; Deployment erfolgt NICHT aus dieser Datei):
+    rules_version = '2';
+    service cloud.firestore {
+      match /databases/{database}/documents {
+        match /{document=**} {
+          allow read, write: if request.time < timestamp.date(2027, 9, 20);
+        }
+      }
+    }
+  -->
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="head">
-        <div>
-          <h1>SCHALLPLATTEN-TRACKER</h1>
-          <div class="sub">Bootstrap: lokale Daten → Cloud; sonst Cloud → lokal</div>
-        </div>
-        <div class="row right">
-          <button id="themeToggle" class="theme-toggle" aria-label="Theme umschalten">🌙 <span id="themeLabel">Dark</span></button>
-          <div class="actions">
-            <span id="firebase-status" class="ok" title="Cloud-Sync">🔌 Firebase lädt…</span>
-            <button id="btn-export-json">Export JSON</button>
-            <button id="btn-export-csv">Export CSV</button>
-            <button id="btn-import">Import JSON</button>
-            <input id="file-import" type="file" accept="application/json" class="hidden" />
+  <div class="wrap">
+    <div class="header">
+      <div>
+        <h1>Vinyl Tracker <span class="pill">Single-File</span></h1>
+        <div class="muted" style="max-width:60ch">Speichert Datensätze in <code>Firestore / vinyls</code>. Dieses Frontend ist eine einzige <code>index.html</code>.</div>
+      </div>
+      <div class="status"><span class="dot" id="status-dot"></span><span id="status-text">Firebase initialisiert</span></div>
+    </div>
+
+    <div style="height:14px"></div>
+
+    <div class="card">
+      <form id="add-form">
+        <div class="row">
+          <div>
+            <label for="artist">Artist</label>
+            <input id="artist" placeholder="z. B. Boards of Canada" required />
+          </div>
+          <div>
+            <label for="title">Title</label>
+            <input id="title" placeholder="z. B. Music Has the Right..." required />
+          </div>
+          <div>
+            <label for="barcode">Barcode (optional)</label>
+            <input id="barcode" placeholder="EAN/UPC" />
           </div>
         </div>
-      </div>
-    </header>
-
-    <section class="stats">
-      <div class="stat"><div class="muted">Gesamtanzahl</div><div class="v" id="stat-count">0</div></div>
-      <div class="stat"><div class="muted">Ausgaben (geschätzt)</div><div class="v" id="stat-spent">0,00 €</div></div>
-    </section>
-
-    <section class="card" style="margin-top:12px">
-      <div class="row">
-        <div style="flex:1; min-width:240px">
-          <label for="search">Suche</label>
-          <input id="search" placeholder="Künstler, Titel, Label oder Tag" />
-        </div>
-        <div style="width:180px">
-          <label for="formatFilter">Format</label>
-          <select id="formatFilter"><option value="">(alle)</option></select>
-        </div>
-        <div style="width:220px">
-          <label for="condFilter">Zustand</label>
-          <select id="condFilter"><option value="">(alle)</option></select>
-        </div>
-        <div style="width:220px">
-          <label for="sortBy">Sortierung</label>
-          <select id="sortBy">
-            <option value="createdAt-desc">Neueste zuerst</option>
-            <option value="artist-asc">Künstler A–Z</option>
-            <option value="title-asc">Titel A–Z</option>
-            <option value="year-desc">Jahr ↓</option>
-            <option value="price-desc">Preis ↓</option>
-            <option value="color-asc">Farbe A–Z</option>
-          </select>
-        </div>
-        <div><button id="btn-reset">Reset</button></div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-top:12px">
-      <div class="grid grid-2">
-        <div>
-          <label for="barcode">Barcode einscannen oder eingeben (EAN/UPC)</label>
-          <input id="barcode" inputmode="numeric" placeholder="z. B. 0888750663828" />
-          <div class="note">USB-Scanner tippt den Code + Enter. Nach Enter wird automatisch gesucht.</div>
-        </div>
-        <div>
-          <label for="discogsToken">Optional: Discogs-Token (für bessere Treffer)</label>
-          <input id="discogsToken" placeholder="Discogs API-Token (optional)" />
-          <div class="note">Ohne Token wird MusicBrainz + Cover Art Archive genutzt.</div>
-        </div>
-      </div>
-      <div class="actions" style="margin-top:8px">
-        <button id="btn-lookup" class="primary">Infos per Barcode holen</button>
-        <span id="lookup-status" class="muted"></span>
-      </div>
-    </section>
-
-    <section class="card" style="margin-top:12px">
-      <div class="row" style="justify-content:space-between; margin-bottom:8px">
-        <strong>Sammlung</strong>
-        <button id="btn-add">Neue Platte</button>
-      </div>
-      <table class="table" id="table">
-        <thead>
-          <tr>
-            <th>Cover</th>
-            <th>Künstler — Titel<br><span class="muted">Label • Jahr • Format • Zustand</span></th>
-            <th>Tags / Notizen</th>
-            <th>Farbe</th>
-            <th>Preis</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </section>
-
-    <dialog id="dlg">
-      <form method="dialog">
-        <div class="dialog-body">
-          <h3 id="dlg-title" style="margin:8px 0 12px 0">Platte</h3>
-          <div class="grid grid-2">
-            <div><label>Künstler*in</label><input id="f-artist" placeholder="z. B. Nils Frahm" /></div>
-            <div><label>Titel</label><input id="f-title" placeholder="z. B. All Melody" /></div>
-            <div><label>Jahr</label><input id="f-year" /></div>
-            <div><label>Label</label><input id="f-label" /></div>
-            <div><label>Katalog-Nr.</label><input id="f-catalog" /></div>
-            <div><label>Format</label><select id="f-format"></select></div>
-            <div><label>Farbe</label><input id="f-color" placeholder="schwarz / clear / splatter…" /></div>
-            <div><label>Zustand</label><select id="f-condition"></select></div>
-            <div><label>Bewertung (0–5)</label><input id="f-rating" type="number" min="0" max="5" step="1" /></div>
-            <div><label>Preis (€)</label><input id="f-price" type="number" min="0" step="0.01" /></div>
-            <div><label>Kaufdatum</label><input id="f-date" type="date" /></div>
-            <div><label>Cover-URL</label><input id="f-cover" placeholder="https://…" /></div>
-            <div class="grid" style="grid-column:1/-1"><label>Tags (mit Komma)</label><input id="f-tags" placeholder="ambient, 90s" /></div>
-            <div class="grid" style="grid-column:1/-1"><label>Notizen</label><textarea id="f-notes" rows="4" placeholder="Pressung, Matrix, Besonderheiten…"></textarea></div>
-          </div>
-          <div class="actions" style="margin-top:12px; justify-content:flex-end">
-            <button id="btn-cancel" class="ghost">Abbrechen</button>
-            <button id="btn-save" class="primary">Speichern</button>
-          </div>
+        <div class="toolbar">
+          <button id="add-btn" type="submit">Speichern</button>
+          <button id="clear-btn" type="button" class="danger">Alle löschen</button>
+          <span class="pill">Live-Updates</span>
         </div>
       </form>
-    </dialog>
+    </div>
+
+    <div style="height:14px"></div>
+
+    <div class="card">
+      <div class="toolbar" style="justify-content:space-between">
+        <h2 style="margin:4px 0">Deine Sammlung</h2>
+        <div class="muted"><span id="count">0</span> Einträge</div>
+      </div>
+      <div id="list" class="list"></div>
+      <p id="empty" class="muted" style="display:none;">Noch keine Einträge.</p>
+    </div>
+
+    <p class="footer">Hinweis: Firestore-Regeln sind in Firebase zu setzen (siehe Kommentar im Head). Hosting via GitHub Pages: einfach diese <code>index.html</code> pushen und Pages aktivieren.</p>
   </div>
 
-  <!-- Firebase (ES Modules) -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-lite.js";
+    // --- Firebase CDN (Version kann angepasst werden) ---
+    const FBJS = "11.10.0";
+    import { initializeApp } from `https://www.gstatic.com/firebasejs/${FBJS}/firebase-app.js`;
+    import {
+      getFirestore, collection, addDoc, onSnapshot, query, orderBy,
+      serverTimestamp, deleteDoc, doc, getDocs
+    } from `https://www.gstatic.com/firebasejs/${FBJS}/firebase-firestore.js`;
 
+    // --- Luca's gewünschte Konfiguration (unverändert übernommen) ---
     const firebaseConfig = {
-      apiKey: "AIzaSyDdGIkn7dNmYlaaIakZ1EWH9dtdpNvVpUc",
-      authDomain: "platten-c1817.firebaseapp.com",
-      projectId: "platten-c1817",
-      storageBucket: "platten-c1817.firebasestorage.app",
-      messagingSenderId: "376624319679",
-      appId: "1:376624319679:web:28e871bf481b27342e4a0a"
+      apiKey: "AIzaSyBJtQ6hkPbWwoxeFbqqGyS0tj3nU72z0wg",
+      authDomain: "vinyl-c7d5b.firebaseapp.com",
+      projectId: "vinyl-c7d5b",
+      storageBucket: "vinyl-c7d5b.firebasestorage.app",
+      messagingSenderId: "444982033516",
+      appId: "1:444982033516:web:4e2e54af7aa803a4826c49"
     };
 
+    // --- Init ---
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // UI Status
-    const s = document.getElementById("firebase-status");
-    const ok  = (msg)=>{ if(s){ s.classList.remove('err'); s.textContent = `✅ ${msg}`; } };
-    const err = (msg)=>{ if(s){ s.classList.add('err'); s.textContent = `❌ ${msg}`; } };
-    ok("Firebase bereit (Lite)");
+    // --- UI ---
+    const form = document.getElementById("add-form");
+    const artistEl = document.getElementById("artist");
+    const titleEl  = document.getElementById("title");
+    const barcodeEl= document.getElementById("barcode");
+    const listEl   = document.getElementById("list");
+    const emptyEl  = document.getElementById("empty");
+    const addBtn   = document.getElementById("add-btn");
+    const clearBtn = document.getElementById("clear-btn");
+    const countEl  = document.getElementById("count");
 
-    // Firestore-Referenz (globales Doc, offene Regeln)
-    const REF = doc(db, "vinyl", "latest");
+    const col = collection(db, "vinyls");
+    const q = query(col, orderBy("createdAt", "desc"));
 
-    async function cloudSave(items, meta = {}){
-      const payload = { items, meta: { ...meta, updatedAt: serverTimestamp() } };
-      await setDoc(REF, payload, { merge:false });
-      ok("Cloud gespeichert");
-    }
-
-    async function cloudLoad(){
-      const snap = await getDoc(REF);
-      if (!snap.exists()){ ok("Cloud leer"); return null; }
-      const data = snap.data();
-      ok("Cloud geladen");
-      return data;
-    }
-
-    // Exponieren
-    window.firebaseCloud = { cloudSave, cloudLoad };
-
-    // Wenn die App die Bootstrap-Funktion schon gesetzt hat, sofort ausführen
-    if (window.__bootstrapSync) window.__bootstrapSync();
-    // Fallback (falls Reihenfolge anders ist)
-    setTimeout(()=>{ if (window.__bootstrapSync) window.__bootstrapSync(); }, 300);
-  </script>
-
-  <!-- App-Logik -->
-  <script>
-  (function(){
-    const FORMATS = ["LP","EP","Single","12\"","7\"","Tape","CD","Digital"];
-    const CONDITIONS = ["Mint (M)","Near Mint (NM)","Very Good+ (VG+)","Very Good (VG)","Good (G)","Poor (P)"];
-    const STORAGE_KEY = "vinyl-tracker.html.v1";
-    const STORAGE_META_KEY = "vinyl-tracker.html.v1.meta";
-
-    let items = load();
-    let editingId = null;
-
-    const el = (id) => document.getElementById(id);
-    const tbody = el('tbody');
-    const dlg = el('dlg');
-
-    // Selects füllen
-    function fillSelect(id, opts){ const s = el(id); s.innerHTML = ''; opts.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; s.appendChild(o); }); }
-    fillSelect('f-format', FORMATS); fillSelect('f-condition', CONDITIONS);
-    (function(){ const f = el('formatFilter'); FORMATS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
-    (function(){ const f = el('condFilter'); CONDITIONS.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; f.appendChild(o); }); })();
-
-    function render(){
-      const q = el('search').value.trim().toLowerCase();
-      const ff = el('formatFilter').value; const cf = el('condFilter').value; const sb = el('sortBy').value;
-      let list = items.filter(i=> (i.artist + ' ' + i.title + ' ' + (i.label||'') + ' ' + (i.tags||[]).join(' ')).toLowerCase().includes(q));
-      if (ff) list = list.filter(i => i.format === ff);
-      if (cf) list = list.filter(i => i.condition === cf);
-      const [field, dir] = sb.split('-');
-      list.sort((a,b)=>{
-        const va = (a[field] ?? '').toString(); const vb = (b[field] ?? '').toString();
-        if (field === 'price' || field === 'rating') { const na=Number(va||0), nb=Number(vb||0); return dir==='asc'? na-nb : nb-na; }
-        return dir==='asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-      });
-
-      tbody.innerHTML = '';
-      for (const i of list){
-        const tr = document.createElement('tr');
-        // Cover
-        const coverTd = document.createElement('td');
-        const img = document.createElement('img'); img.className='cover'; img.alt='Cover'; img.src = i.coverUrl || ''; if (!i.coverUrl) img.style.background = '#222';
-        coverTd.appendChild(img); tr.appendChild(coverTd);
-        // Meta
-        const meta = document.createElement('td');
-        const title = document.createElement('div'); title.innerHTML = `<strong>${esc(i.artist)}</strong> — ${esc(i.title)}`; meta.appendChild(title);
-        const line = document.createElement('div'); line.className='muted'; line.textContent = [i.label, i.year, i.format, i.condition].filter(Boolean).join(' • '); meta.appendChild(line);
-        tr.appendChild(meta);
-        // Notes/Tags
-        const notes = document.createElement('td'); const tags = document.createElement('div'); tags.className='badges';
-        (i.tags||[]).forEach(t=>{ const b=document.createElement('span'); b.className='badge'; b.textContent = '#'+t; tags.appendChild(b); }); notes.appendChild(tags);
-        if (i.notes) { const p=document.createElement('div'); p.style.marginTop='6px'; p.textContent=i.notes; notes.appendChild(p); }
-        tr.appendChild(notes);
-        // Farbe / Preis
-        const color = document.createElement('td'); color.textContent = i.color || ''; tr.appendChild(color);
-        const price = document.createElement('td'); price.textContent = i.price!=null ? (Number(i.price).toFixed(2)+' €') : ''; tr.appendChild(price);
-        // Aktionen
-        const actions = document.createElement('td'); actions.style.whiteSpace='nowrap';
-        const ebtn = document.createElement('button'); ebtn.textContent='Bearbeiten';
-        ebtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openEditor(i.id); });
-        actions.appendChild(ebtn);
-        const dbtn = document.createElement('button'); dbtn.textContent='Löschen'; dbtn.style.marginLeft='6px';
-        dbtn.addEventListener('click', (ev)=>{
-          ev.preventDefault(); ev.stopPropagation();
-          try{
-            if (!confirm('Wirklich löschen?')) return;
-            items = items.filter(x=>x.id!==i.id);
-            save();
-            // nächster Frame, um Layout-Jank zu vermeiden
-            requestAnimationFrame(render);
-          }catch(e){ console.warn("Delete failed:", e); }
+    // --- Render ---
+    const render = (docs) => {
+      listEl.innerHTML = "";
+      countEl.textContent = String(docs.length);
+      if (!docs.length) {
+        emptyEl.style.display = "block";
+        return;
+      }
+      emptyEl.style.display = "none";
+      for (const d of docs) {
+        const data = d.data();
+        const row = document.createElement("div");
+        row.className = "item";
+        const left = document.createElement("div");
+        left.innerHTML = `<div class="meta"><strong>${data.artist ?? "—"} — ${data.title ?? "—"}</strong></div>
+                          <div class="muted">Barcode: ${data.barcode || "–"} · <code>${d.id}</code></div>`;
+        const right = document.createElement("div");
+        const del = document.createElement("button");
+        del.className = "secondary";
+        del.textContent = "Löschen";
+        del.addEventListener("click", async () => {
+          del.disabled = true;
+          await deleteDoc(doc(db, "vinyls", d.id));
         });
-        actions.appendChild(dbtn);
-        tr.appendChild(actions);
-        tbody.appendChild(tr);
-      }
-      stats();
-    }
-
-    function stats(){
-      el('stat-count').textContent = String(items.length);
-      const spent = items.reduce((s,i)=> s + (Number(i.price)||0), 0);
-      el('stat-spent').textContent = new Intl.NumberFormat('de-DE', { style:'currency', currency:'EUR' }).format(spent);
-    }
-
-    function esc(s){ return (s||'').toString().replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-
-    // Lokaler Storage + Auto-Cloud-Save
-    function save(){
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      const meta = { localUpdatedAt: new Date().toISOString() };
-      saveMeta(meta);
-      if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
-      _cloudSaveTimer = setTimeout(async ()=>{
-        try {
-          if (window.firebaseCloud?.cloudSave){
-            await window.firebaseCloud.cloudSave(items, meta);
-          }
-        } catch (e){
-          console.warn("Cloud save failed:", e?.code || e?.message || e);
-        }
-      }, 600);
-    }
-    function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch{ return []; } }
-    function saveMeta(meta){ localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta)); }
-    function loadMeta(){ try{ return JSON.parse(localStorage.getItem(STORAGE_META_KEY)||'{}'); } catch { return {}; } }
-    let _cloudSaveTimer = null;
-
-    // Editor
-    function openEditor(id){
-      editingId = id || (crypto.randomUUID ? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2)+Date.now()));
-      const data = items.find(x=>x.id===id) || { id: editingId, artist:'', title:'', format:'LP', condition:'Very Good+ (VG+)', tags:[], createdAt: new Date().toISOString() };
-      el('dlg-title').textContent = id ? 'Bearbeiten' : 'Neue Platte';
-      el('f-artist').value = data.artist||''; el('f-title').value = data.title||''; el('f-year').value = data.year||'';
-      el('f-label').value = data.label||''; el('f-catalog').value = data.catalog||''; el('f-format').value = data.format||'LP';
-      el('f-color').value = data.color||''; el('f-condition').value = data.condition||'';
-      el('f-rating').value = data.rating ?? ''; el('f-price').value = data.price ?? '';
-      el('f-date').value = data.purchaseDate ? data.purchaseDate.slice(0,10) : '';
-      el('f-cover').value = data.coverUrl || '';
-      el('f-tags').value = (data.tags||[]).join(', ');
-      el('f-notes').value = data.notes || '';
-      dlg.showModal();
-    }
-
-    function saveEditor(){
-      const rec = {
-        id: editingId || (crypto.randomUUID ? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2)+Date.now())),
-        artist: el('f-artist').value.trim(),
-        title: el('f-title').value.trim(),
-        year: el('f-year').value.trim(),
-        label: el('f-label').value.trim(),
-        catalog: el('f-catalog').value.trim(),
-        format: el('f-format').value,
-        color: el('f-color').value.trim(),
-        condition: el('f-condition').value,
-        rating: Number(el('f-rating').value||0),
-        price: el('f-price').value ? Number(el('f-price').value) : undefined,
-        purchaseDate: el('f-date').value ? new Date(el('f-date').value).toISOString() : undefined,
-        coverUrl: el('f-cover').value.trim(),
-        tags: el('f-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
-        notes: el('f-notes').value.trim(),
-        createdAt: items.find(x=>x.id===editingId)?.createdAt || new Date().toISOString()
-      };
-      if (!rec.artist || !rec.title) { alert('Bitte Künstler und Titel ausfüllen.'); return; }
-      const i = items.findIndex(x=>x.id===rec.id);
-      if (i>=0) items[i] = rec; else items.unshift(rec);
-      save(); render(); dlg.close();
-    }
-
-    // Barcode Lookup (unverändert)
-    async function lookupByBarcode(code){
-      const status = el('lookup-status'); status.textContent = 'Suche…';
-      const clean = (code||'').replace(/\D/g,''); if (!clean) { status.textContent = 'Kein gültiger Code.'; return null; }
-      try {
-        const mbUrl = `https://musicbrainz.org/ws/2/release/?query=barcode:${clean}&fmt=json`;
-        const mb = await fetch(mbUrl, { headers: { 'User-Agent': 'VinylTrackerHTML/1.0 (barcode lookup)', 'Accept': 'application/json' } });
-        const data = await mb.json(); const hit = data.releases && data.releases[0];
-        if (hit){
-          const artist = (hit["artist-credit"]||[]).map(a=> a.name || a.artist?.name).filter(Boolean).join(', ');
-          const title = hit.title || ''; const year = (hit.date||'').slice(0,4);
-          const label = (hit["label-info"]||[])[0]?.label?.name || ''; const catalog = (hit["label-info"]||[])[0]?.catalog_number || '';
-          const mbid = hit.id; let cover = '';
-          try {
-            const caa = await fetch(`https://coverartarchive.org/release/${mbid}`); if (caa.ok) { const ca = await caa.json(); const front = (ca.images||[]).find(img=>img.front) || ca.images?.[0]; cover = front?.thumbnails?.small || front?.image || ''; }
-          } catch {}
-          status.textContent = 'Treffer aus MusicBrainz';
-          return { artist, title, year, label, catalog, coverUrl: cover };
-        }
-      } catch (e){ console.warn(e); }
-      const token = el('discogsToken').value.trim();
-      if (token){
-        try {
-          const dcUrl = `https://api.discogs.com/database/search?barcode=${clean}&type=release&token=${encodeURIComponent(token)}`;
-          const dc = await fetch(dcUrl, { headers: { 'User-Agent': 'VinylTrackerHTML/1.0' } });
-          const data = await dc.json(); const first = (data.results||[])[0];
-          if (first){
-            const details = { artist:(first.artist || (first.title||'').split(' - ')[0] || ''), title:(first.title||'').split(' - ').slice(1).join(' - '),
-                              year:first.year? String(first.year):'', label:(first.label||[])[0]||'', catalog:(first.catno||''), coverUrl:first.cover_image||first.thumb||'' };
-            status.textContent = 'Treffer aus Discogs'; return details;
-          }
-        } catch (e){ console.warn(e); }
-      }
-      status.textContent = 'Nichts gefunden.'; return null;
-    }
-
-    async function autofillFromBarcode(){
-      const code = el('barcode').value;
-      const info = await lookupByBarcode(code);
-      if (!info) return;
-      openEditor(null);
-      el('f-artist').value = info.artist || '';
-      el('f-title').value = info.title || '';
-      el('f-year').value = info.year || '';
-      el('f-label').value = info.label || '';
-      el('f-catalog').value = info.catalog || '';
-      el('f-cover').value = info.coverUrl || '';
-    }
-
-    // Events
-    el('btn-add').addEventListener('click', (e)=>{ e.preventDefault(); openEditor(null); });
-    el('btn-save').addEventListener('click', (e)=>{ e.preventDefault(); saveEditor(); });
-    el('btn-cancel').addEventListener('click', (e)=>{ e.preventDefault(); dlg.close(); });
-
-    el('btn-reset').addEventListener('click', (e)=>{ e.preventDefault(); el('search').value=''; el('formatFilter').value=''; el('condFilter').value=''; el('sortBy').value='createdAt-desc'; render(); });
-    ['search','formatFilter','condFilter','sortBy'].forEach(id=> el(id).addEventListener('input', render));
-
-    el('btn-lookup').addEventListener('click', (e)=>{ e.preventDefault(); autofillFromBarcode(); });
-    el('barcode').addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ e.preventDefault(); autofillFromBarcode(); } });
-
-    // Export / Import
-    el('btn-export-json').addEventListener('click', (e)=>{
-      e.preventDefault();
-      const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
-      download(blob, `vinyl-export-${new Date().toISOString().slice(0,10)}.json`);
-    });
-    el('btn-export-csv').addEventListener('click', (e)=>{
-      e.preventDefault();
-      const headers = ["artist","title","year","label","catalog","format","color","condition","tags","notes","rating","purchaseDate","price","coverUrl","id","createdAt"]; 
-      const rows = items.map(i => headers.map(h => {
-        const val = h === 'tags' ? (i.tags||[]).join('|') : (i[h] ?? '');
-        const s = String(val).replaceAll('"', '""');
-        return `"${s}"`;
-      }).join(','));
-      const csv = [headers.join(','), ...rows].join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      download(blob, `vinyl-export-${new Date().toISOString().slice(0,10)}.csv`);
-    });
-    el('btn-import').addEventListener('click', (e)=>{ e.preventDefault(); el('file-import').click(); });
-    el('file-import').addEventListener('change', async (e)=>{
-      const file = e.target.files?.[0]; if (!file) return;
-      try { const text = await file.text(); const parsed = JSON.parse(text); if (!Array.isArray(parsed)) throw new Error(); items = parsed; save(); render(); }
-      catch { alert('Konnte Datei nicht laden (erwarte JSON aus Export).'); }
-      finally { e.target.value=''; }
-    });
-
-    function download(blob, name){
-      const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click();
-      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
-    }
-
-    // --- WICHTIG: Bootstrap-Sync ---
-    // Wenn lokal Daten vorhanden sind → SOFORT in Cloud speichern (overwrite).
-    // Wenn lokal leer → aus Cloud laden und lokal speichern.
-    window.__bootstrapSync = async function(){
-      try {
-        // Warte, bis die Cloud-Funktionen da sind
-        if (!window.firebaseCloud?.cloudSave || !window.firebaseCloud?.cloudLoad){
-          setTimeout(window.__bootstrapSync, 200);
-          return;
-        }
-        const local = load();
-        if (Array.isArray(local) && local.length > 0){
-          // Direkt hochladen (ohne Vergleiche)
-          try {
-            await window.firebaseCloud.cloudSave(local, { localUpdatedAt: new Date().toISOString(), source: "bootstrap-push" });
-          } catch(e){
-            console.warn("Bootstrap push failed:", e);
-          }
-        } else {
-          // Lokal leer → aus Cloud ziehen
-          try {
-            const cloud = await window.firebaseCloud.cloudLoad();
-            if (cloud && Array.isArray(cloud.items)){
-              items = cloud.items;
-              save(); // lokal cachen + (debounced) wieder hoch
-              render();
-            }
-          } catch(e){
-            console.warn("Bootstrap load failed:", e);
-          }
-        }
-      } catch (e){
-        console.warn("Bootstrap error:", e);
-      } finally {
-        // In jedem Fall UI zeigen
-        render();
+        right.appendChild(del);
+        row.append(left, right);
+        listEl.appendChild(row);
       }
     };
 
-    // Start UI
-    render();
-  })();
-  </script>
+    onSnapshot(q, (snap) => render(snap.docs));
 
-  <script>
-    (function(){
-      const els = { themeToggle: document.getElementById('themeToggle'), themeLabel: document.getElementById('themeLabel') };
-      function applyTheme(t){
-        document.documentElement.setAttribute('data-theme', t);
-        if (els.themeLabel) els.themeLabel.textContent = t==='light' ? 'Light' : 'Dark';
-        if (els.themeToggle) els.themeToggle.firstChild.nodeValue = t==='light' ? '☀️' : '🌙';
-        localStorage.setItem('theme', t);
-      }
-      const saved = localStorage.getItem('theme') || 'dark';
-      applyTheme(saved);
-      if (els.themeToggle) els.themeToggle.addEventListener('click', ()=> applyTheme(document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light'));
-    })();
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      addBtn.disabled = true;
+      try {
+        await addDoc(col, {
+          artist: artistEl.value.trim(),
+          title: titleEl.value.trim(),
+          barcode: barcodeEl.value.trim() || null,
+          createdAt: serverTimestamp(),
+        });
+        artistEl.value = ""; titleEl.value = ""; barcodeEl.value = "";
+      } finally { addBtn.disabled = false; }
+    });
+
+    clearBtn.addEventListener("click", async () => {
+      if (!confirm("Wirklich ALLE Einträge löschen?")) return;
+      const snap = await getDocs(col);
+      for (const d of snap.docs) await deleteDoc(d.ref);
+    });
   </script>
 </body>
 </html>
